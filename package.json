@@ -1,0 +1,25 @@
+{
+  "name": "dictation-ia-locale",
+  "version": "0.1.0",
+  "description": "Application de dictée vocale local-first avec post-traitement IA",
+  "main": "src/main.py",
+  "scripts": {
+    "start": "python src/main.py",
+    "dev": "python src/main.py --debug",
+    "test": "pytest tests/"
+  },
+  "keywords": [
+    "dictation",
+    "transcription",
+    "speech-to-text",
+    "whisper",
+    "llm",
+    "local",
+    "privacy"
+  ],
+  "author": "Uhama",
+  "license": "MIT",
+  "dependencies": {
+    "TODO": "À définir selon la stack choisie"
+  }
+}
