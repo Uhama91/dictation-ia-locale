@@ -3,7 +3,7 @@
 /// Task 12 : Routing conditionnel basé sur le score de confiance Whisper
 ///
 /// Seuils de routing (configurables) :
-/// - confidence >= 0.85 ET words <= 30 ET mode != Pro → règles seules (< 5ms)
+/// - confidence >= 0.82 ET words <= 30 ET mode != Pro → règles seules (< 5ms)
 /// - Sinon → règles + LLM Qwen2.5-0.5B Q4 (~200-300ms)
 ///
 /// Résultat attendu : 60-65% des cas sans LLM
@@ -12,7 +12,7 @@ use crate::pipeline::modes::WriteMode;
 use crate::pipeline::rules;
 
 /// Seuil de confiance au-dessus duquel on évite le LLM (mode Chat/Code)
-const CONFIDENCE_THRESHOLD: f32 = 0.85;
+const CONFIDENCE_THRESHOLD: f32 = 0.82;
 /// Nombre max de mots pour le fast-path sans LLM
 const MAX_WORDS_FAST_PATH: usize = 30;
 
