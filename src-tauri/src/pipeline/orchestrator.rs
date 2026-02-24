@@ -67,6 +67,12 @@ pub fn process(
     let word_count = rules_result.split_whitespace().count();
     let decision = route(confidence, word_count, mode);
 
+    log::info!(
+        "[Routing] confiance={:.2} mots={} mode={:?} → {}",
+        confidence, word_count, mode,
+        if decision == RoutingDecision::RulesOnly { "fast-path (règles)" } else { "LLM" }
+    );
+
     // Étape 2 : LLM conditionnel
     let (final_text, rules_only) = match (decision, llm_cleanup_fn) {
         (RoutingDecision::RulesAndLlm, Some(cleanup_fn)) => {

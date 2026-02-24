@@ -32,24 +32,74 @@ fn link_whisper_cpp() {
     println!("cargo:rerun-if-changed=../vendor/whisper.cpp/build/src/libwhisper.a");
 
     if whisper_lib.exists() && ggml_lib.exists() {
-        let whisper_search = whisper_lib.parent().unwrap().display();
-        let ggml_search = ggml_lib.parent().unwrap().display();
+        let whisper_include = Path::new(&manifest_dir)
+            .parent()
+            .unwrap()
+            .join("vendor/whisper.cpp/include");
 
-        println!("cargo:rustc-link-search=native={whisper_search}");
-        println!("cargo:rustc-link-lib=static=whisper");
-        println!("cargo:rustc-link-search=native={ggml_search}");
-        println!("cargo:rustc-link-lib=static=ggml");
+        let ggml_include = Path::new(&manifest_dir)
+            .parent()
+            .unwrap()
+            .join("vendor/whisper.cpp/ggml/include");
+
+        // Compiler le wrapper C (évite de reproduire le layout de whisper_full_params en Rust)
+        cc::Build::new()
+            .file("src/whisper_wrapper.c")
+            .include(&whisper_include)
+            .include(&ggml_include)
+            .compile("whisper_wrapper");
+
+        // whisper-rs-sys (via transcribe-rs) expose aussi une libwhisper.a plus ancienne.
+        // Pour éviter le conflit de noms, on fusionne toutes nos libs en une archive unique.
+        let ggml_base_lib = Path::new(&manifest_dir)
+            .parent()
+            .unwrap()
+            .join("vendor/whisper.cpp/build/ggml/src/libggml-base.a");
+        let ggml_cpu_lib = Path::new(&manifest_dir)
+            .parent()
+            .unwrap()
+            .join("vendor/whisper.cpp/build/ggml/src/libggml-cpu.a");
+        let ggml_metal_lib = Path::new(&manifest_dir)
+            .parent()
+            .unwrap()
+            .join("vendor/whisper.cpp/build/ggml/src/ggml-metal/libggml-metal.a");
+        let ggml_blas_lib = Path::new(&manifest_dir)
+            .parent()
+            .unwrap()
+            .join("vendor/whisper.cpp/build/ggml/src/ggml-blas/libggml-blas.a");
+
+        let out_dir = std::env::var("OUT_DIR").unwrap();
+        let merged = format!("{out_dir}/libwhisper_full.a");
+
+        // Fusion des archives avec libtool (disponible sur macOS)
+        let status = std::process::Command::new("libtool")
+            .args(["-static", "-o", &merged])
+            .arg(&whisper_lib)
+            .arg(&ggml_lib)
+            .arg(&ggml_base_lib)
+            .arg(&ggml_cpu_lib)
+            .arg(&ggml_metal_lib)
+            .arg(&ggml_blas_lib)
+            .status()
+            .expect("libtool non trouvé");
+
+        if !status.success() {
+            panic!("libtool failed: impossible de fusionner les libs whisper+ggml");
+        }
+
+        println!("cargo:rustc-link-search=native={out_dir}");
+        println!("cargo:rustc-link-lib=static=whisper_full");
 
         // Frameworks macOS requis par whisper.cpp/Metal
         println!("cargo:rustc-link-lib=framework=Foundation");
         println!("cargo:rustc-link-lib=framework=Metal");
         println!("cargo:rustc-link-lib=framework=MetalPerformanceShaders");
         println!("cargo:rustc-link-lib=framework=Accelerate");
-        // CoreML (si compilé avec WHISPER_COREML=ON)
+        // CoreML (si compilé avec WHISPER_COREML=ON — non actif sans Xcode complet)
         println!("cargo:rustc-link-lib=framework=CoreML");
 
         println!("cargo:rustc-cfg=whisper_native");
-        println!("cargo:warning=whisper.cpp natif activé (CoreML + Metal)");
+        println!("cargo:warning=whisper.cpp natif activé (Metal — CoreML nécessite Xcode complet)");
     } else {
         println!(
             "cargo:warning=whisper.cpp non compilé — mode stub actif. \

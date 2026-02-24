@@ -9,7 +9,7 @@ use crate::utils::{
     self, show_processing_overlay, show_recording_overlay, show_transcribing_overlay,
 };
 use crate::TranscriptionCoordinator;
-use log::{debug, error, warn};
+use log::{debug, error, info, warn};
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -321,6 +321,7 @@ impl ShortcutAction for TranscribeAction {
 
             let stop_recording_time = Instant::now();
             if let Some(samples) = rm.stop_recording(&binding_id) {
+                info!("[Audio] {} échantillons capturés ({:.1}s audio)", samples.len(), samples.len() as f32 / 16000.0);
                 debug!(
                     "Recording stopped and samples retrieved in {:?}, sample count: {}",
                     stop_recording_time.elapsed(),
@@ -333,11 +334,11 @@ impl ShortcutAction for TranscribeAction {
                     Ok(output) => {
                         let raw_transcription = output.text;
                         let confidence = output.confidence;
-                        debug!(
-                            "Transcription completed in {:?}: '{}' (confidence: {:.2})",
-                            transcription_time.elapsed(),
+                        info!(
+                            "[STT] Transcription brute : «{}» (confiance: {:.2}, durée: {:?})",
                             raw_transcription,
-                            confidence
+                            confidence,
+                            transcription_time.elapsed()
                         );
 
                         // Pipeline hybride FR : règles locales → [LLM conditionnel]
@@ -353,10 +354,11 @@ impl ShortcutAction for TranscribeAction {
                             write_mode,
                             Some(&crate::llm::cleanup::run),
                         );
-                        debug!(
-                            "Pipeline: {}ms, rules_only={}",
+                        info!(
+                            "[Pipeline] Texte final : «{}» | {}ms | {}",
+                            pipeline_result.text,
                             pipeline_result.duration_ms,
-                            pipeline_result.rules_only
+                            if pipeline_result.rules_only { "règles seules" } else { "règles + LLM" }
                         );
                         let transcription = pipeline_result.text;
 
