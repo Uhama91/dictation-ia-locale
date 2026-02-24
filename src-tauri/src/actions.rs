@@ -331,12 +331,30 @@ impl ShortcutAction for TranscribeAction {
                 let samples_clone = samples.clone(); // Clone for history saving
                 match tm.transcribe(samples) {
                     Ok(output) => {
-                        let transcription = output.text;
+                        let raw_transcription = output.text;
+                        let confidence = output.confidence;
                         debug!(
-                            "Transcription completed in {:?}: '{}'",
+                            "Transcription completed in {:?}: '{}' (confidence: {:.2})",
                             transcription_time.elapsed(),
-                            transcription
+                            raw_transcription,
+                            confidence
                         );
+
+                        // Pipeline hybride FR : règles locales → [LLM conditionnel]
+                        // Routing : confiance >= 0.85 + ≤30 mots + Chat/Code → règles seules
+                        let pipeline_result = crate::pipeline::orchestrator::process(
+                            &raw_transcription,
+                            confidence,
+                            crate::pipeline::modes::WriteMode::default(), // Chat par défaut (MVP)
+                            Some(&crate::llm::cleanup::run),
+                        );
+                        debug!(
+                            "Pipeline: {}ms, rules_only={}",
+                            pipeline_result.duration_ms,
+                            pipeline_result.rules_only
+                        );
+                        let transcription = pipeline_result.text;
+
                         if !transcription.is_empty() {
                             let settings = get_settings(&ah);
                             let mut final_text = transcription.clone();
