@@ -16,10 +16,18 @@ static FILLER_WORDS_RE: Lazy<Regex> = Lazy::new(|| {
     ).unwrap()
 });
 
-/// Bégaiements : répétitions consécutives du même mot (ex: "je je veux" → "je veux")
-static STUTTER_RE: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"(?i)\b(\w+)(\s+\1)+\b").unwrap()
-});
+/// Collapse les bégaiements (mots consécutifs identiques, insensible à la casse).
+/// La crate regex ne supporte pas les backreférences — implémentation manuelle.
+fn collapse_stutters(text: &str) -> String {
+    let mut result: Vec<&str> = Vec::new();
+    for word in text.split_whitespace() {
+        if result.last().map_or(false, |last: &&str| last.eq_ignore_ascii_case(word)) {
+            continue;
+        }
+        result.push(word);
+    }
+    result.join(" ")
+}
 
 /// Espaces multiples
 static MULTI_SPACE_RE: Lazy<Regex> = Lazy::new(|| {
@@ -39,7 +47,7 @@ pub fn apply(text: &str) -> String {
     let cleaned = FILLER_WORDS_RE.replace_all(text, " ");
 
     // 2. Collapse les bégaiements (répétitions)
-    let cleaned = STUTTER_RE.replace_all(&cleaned, "$1");
+    let cleaned = collapse_stutters(&cleaned);
 
     // 3. Normaliser les espaces multiples
     let cleaned = MULTI_SPACE_RE.replace_all(&cleaned, " ");

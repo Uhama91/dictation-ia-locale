@@ -1,4 +1,7 @@
 fn main() {
+    // Déclarer whisper_native comme cfg connu (évite les warnings unexpected_cfgs)
+    println!("cargo:rustc-check-cfg=cfg(whisper_native)");
+
     // Lier whisper.cpp si compilé (Task 3 — scripts/build-whisper.sh)
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     link_whisper_cpp();
