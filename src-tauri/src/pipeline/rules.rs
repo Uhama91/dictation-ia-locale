@@ -84,6 +84,13 @@ static MULTI_SPACE_RE: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r"\s{2,}").unwrap()
 });
 
+/// Espace manquant après ponctuation de fin de phrase (Whisper colle parfois les phrases).
+/// Ex: "Bonjour.Comment" → "Bonjour. Comment"
+static SPACE_AFTER_PUNCT_RE: Lazy<Regex> = Lazy::new(|| {
+    // Ponctuation suivie directement d'une lettre (maj ou min, ASCII ou accents)
+    Regex::new(r"([.!?])([A-ZÀ-ÙÂÊÎÔÛa-zà-ùâêîôûäëïöü])").unwrap()
+});
+
 /// Applique toutes les règles de nettoyage FR sur le texte brut Whisper.
 ///
 /// Ordre des passes :
@@ -119,16 +126,19 @@ pub fn apply(text: &str) -> String {
     let cleaned = DOUBLE_SEMICOLON_RE.replace_all(&cleaned, ";");
     let cleaned = DOUBLE_COLON_RE.replace_all(&cleaned, ":");
 
-    // 4. Collapse les bégaiements (répétitions)
+    // 4. Espace manquant après ponctuation (Whisper colle parfois "phrase.Suivante")
+    let cleaned = SPACE_AFTER_PUNCT_RE.replace_all(&cleaned, "$1 $2");
+
+    // 5. Collapse les bégaiements (répétitions)
     let cleaned = collapse_stutters(&cleaned);
 
-    // 5. Normaliser les espaces multiples
+    // 6. Normaliser les espaces multiples
     let cleaned = MULTI_SPACE_RE.replace_all(&cleaned, " ");
 
-    // 6. Trim
+    // 7. Trim
     let mut result = cleaned.trim().to_string();
 
-    // 7. Majuscule en début de phrase
+    // 8. Majuscule en début de phrase
     if let Some(first) = result.chars().next() {
         if first.is_lowercase() {
             let upper = first.to_uppercase().to_string();
@@ -136,7 +146,7 @@ pub fn apply(text: &str) -> String {
         }
     }
 
-    // 8. Point final si absent (et que le texte n'est pas vide)
+    // 9. Point final si absent (et que le texte n'est pas vide)
     if !result.is_empty() {
         let last = result.chars().last().unwrap();
         if !matches!(last, '.' | '!' | '?' | ':' | ';' | '…') {
@@ -337,5 +347,29 @@ mod tests {
     fn test_double_comma() {
         let result = apply("oui,, je comprends");
         assert!(!result.contains(",,"), "double comma should be collapsed to single");
+    }
+
+    // ── Tests espacement après ponctuation ─────────────────────────────────
+
+    #[test]
+    fn test_space_after_period() {
+        // Whisper colle parfois "fin.Nouveau" sans espace
+        let result = apply("c'est la fin.Le suivant commence");
+        assert!(result.contains(". Le") || result.contains(". le"),
+            "espace attendu après le point: {:?}", result);
+    }
+
+    #[test]
+    fn test_space_after_question_mark() {
+        let result = apply("Tu viens?Bien sûr");
+        assert!(result.contains("? Bien") || result.contains("? bien"),
+            "espace attendu après le ?: {:?}", result);
+    }
+
+    #[test]
+    fn test_space_after_exclamation() {
+        let result = apply("Super!C'est génial");
+        assert!(result.contains("! C") || result.contains("! c"),
+            "espace attendu après le !: {:?}", result);
     }
 }
