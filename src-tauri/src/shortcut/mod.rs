@@ -534,6 +534,19 @@ pub fn change_selected_language_setting(app: AppHandle, language: String) -> Res
 
 #[tauri::command]
 #[specta::specta]
+pub fn change_write_mode_setting(app: AppHandle, mode: String) -> Result<(), String> {
+    match mode.as_str() {
+        "chat" | "pro" | "code" => {}
+        other => return Err(format!("Mode invalide '{}'. Utiliser chat/pro/code", other)),
+    }
+    let mut settings = settings::get_settings(&app);
+    settings.write_mode = mode;
+    settings::write_settings(&app, settings);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
 pub fn change_overlay_position_setting(app: AppHandle, position: String) -> Result<(), String> {
     let mut settings = settings::get_settings(&app);
     let parsed = match position.as_str() {

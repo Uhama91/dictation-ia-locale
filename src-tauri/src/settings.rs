@@ -360,6 +360,9 @@ pub struct AppSettings {
     #[serde(default = "default_typing_tool")]
     pub typing_tool: TypingTool,
     pub external_script_path: Option<String>,
+    /// Mode d'écriture pipeline FR : "chat" | "pro" | "code" (défaut: "chat")
+    #[serde(default = "default_write_mode")]
+    pub write_mode: String,
 }
 
 fn default_model() -> String {
@@ -387,7 +390,11 @@ fn default_update_checks_enabled() -> bool {
 }
 
 fn default_selected_language() -> String {
-    "auto".to_string()
+    "fr".to_string()
+}
+
+fn default_write_mode() -> String {
+    "chat".to_string()
 }
 
 fn default_overlay_position() -> OverlayPosition {
@@ -724,6 +731,7 @@ pub fn get_default_settings() -> AppSettings {
         paste_delay_ms: default_paste_delay_ms(),
         typing_tool: default_typing_tool(),
         external_script_path: None,
+        write_mode: default_write_mode(),
     }
 }
 

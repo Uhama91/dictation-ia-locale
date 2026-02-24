@@ -342,10 +342,15 @@ impl ShortcutAction for TranscribeAction {
 
                         // Pipeline hybride FR : règles locales → [LLM conditionnel]
                         // Routing : confiance >= 0.85 + ≤30 mots + Chat/Code → règles seules
+                        let settings_for_pipeline = get_settings(&ah);
+                        let write_mode = settings_for_pipeline
+                            .write_mode
+                            .parse::<crate::pipeline::modes::WriteMode>()
+                            .unwrap_or_default();
                         let pipeline_result = crate::pipeline::orchestrator::process(
                             &raw_transcription,
                             confidence,
-                            crate::pipeline::modes::WriteMode::default(), // Chat par défaut (MVP)
+                            write_mode,
                             Some(&crate::llm::cleanup::run),
                         );
                         debug!(
