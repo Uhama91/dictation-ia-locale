@@ -650,8 +650,8 @@ pub fn get_default_settings() -> AppSettings {
         "transcribe".to_string(),
         ShortcutBinding {
             id: "transcribe".to_string(),
-            name: "Transcribe".to_string(),
-            description: "Converts your speech into text.".to_string(),
+            name: "Mode Rapide".to_string(),
+            description: "Enregistre votre voix et transcrit avec règles FR (< 650ms).".to_string(),
             default_binding: default_shortcut.to_string(),
             current_binding: default_shortcut.to_string(),
         },
@@ -669,9 +669,8 @@ pub fn get_default_settings() -> AppSettings {
         "transcribe_with_post_process".to_string(),
         ShortcutBinding {
             id: "transcribe_with_post_process".to_string(),
-            name: "Transcribe with Post-Processing".to_string(),
-            description: "Converts your speech into text and applies AI post-processing."
-                .to_string(),
+            name: "Mode Qualité".to_string(),
+            description: "Transcrit et applique le LLM Qwen2.5 pour reformulation (Pro uniquement).".to_string(),
             default_binding: default_post_process_shortcut.to_string(),
             current_binding: default_post_process_shortcut.to_string(),
         },
@@ -680,8 +679,8 @@ pub fn get_default_settings() -> AppSettings {
         "cancel".to_string(),
         ShortcutBinding {
             id: "cancel".to_string(),
-            name: "Cancel".to_string(),
-            description: "Cancels the current recording.".to_string(),
+            name: "Annuler".to_string(),
+            description: "Annule l'enregistrement en cours.".to_string(),
             default_binding: "escape".to_string(),
             current_binding: "escape".to_string(),
         },

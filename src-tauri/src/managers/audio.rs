@@ -7,84 +7,12 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use tauri::Manager;
 
+// Gestionnaire d'enregistrement audio — macOS uniquement.
+// Pipeline : cpal capture f32 mono → SmoothedVad (Silero v4) → buffer PCM → transcription.
+
+/// Coupe/rétablit le son de sortie macOS via AppleScript.
+/// Utilisé optionnellement pendant l'enregistrement si `mute_while_recording` activé.
 fn set_mute(mute: bool) {
-    // Expected behavior:
-    // - Windows: works on most systems using standard audio drivers.
-    // - Linux: works on many systems (PipeWire, PulseAudio, ALSA),
-    //   but some distros may lack the tools used.
-    // - macOS: works on most standard setups via AppleScript.
-    // If unsupported, fails silently.
-
-    #[cfg(target_os = "windows")]
-    {
-        unsafe {
-            use windows::Win32::{
-                Media::Audio::{
-                    eMultimedia, eRender, Endpoints::IAudioEndpointVolume, IMMDeviceEnumerator,
-                    MMDeviceEnumerator,
-                },
-                System::Com::{CoCreateInstance, CoInitializeEx, CLSCTX_ALL, COINIT_MULTITHREADED},
-            };
-
-            macro_rules! unwrap_or_return {
-                ($expr:expr) => {
-                    match $expr {
-                        Ok(val) => val,
-                        Err(_) => return,
-                    }
-                };
-            }
-
-            // Initialize the COM library for this thread.
-            // If already initialized (e.g., by another library like Tauri), this does nothing.
-            let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
-
-            let all_devices: IMMDeviceEnumerator =
-                unwrap_or_return!(CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL));
-            let default_device =
-                unwrap_or_return!(all_devices.GetDefaultAudioEndpoint(eRender, eMultimedia));
-            let volume_interface = unwrap_or_return!(
-                default_device.Activate::<IAudioEndpointVolume>(CLSCTX_ALL, None)
-            );
-
-            let _ = volume_interface.SetMute(mute, std::ptr::null());
-        }
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        use std::process::Command;
-
-        let mute_val = if mute { "1" } else { "0" };
-        let amixer_state = if mute { "mute" } else { "unmute" };
-
-        // Try multiple backends to increase compatibility
-        // 1. PipeWire (wpctl)
-        if Command::new("wpctl")
-            .args(["set-mute", "@DEFAULT_AUDIO_SINK@", mute_val])
-            .output()
-            .map(|o| o.status.success())
-            .unwrap_or(false)
-        {
-            return;
-        }
-
-        // 2. PulseAudio (pactl)
-        if Command::new("pactl")
-            .args(["set-sink-mute", "@DEFAULT_SINK@", mute_val])
-            .output()
-            .map(|o| o.status.success())
-            .unwrap_or(false)
-        {
-            return;
-        }
-
-        // 3. ALSA (amixer)
-        let _ = Command::new("amixer")
-            .args(["set", "Master", amixer_state])
-            .output();
-    }
-
     #[cfg(target_os = "macos")]
     {
         use std::process::Command;
