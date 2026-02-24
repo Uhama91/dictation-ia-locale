@@ -39,7 +39,12 @@ pub struct TranscriptionOutput {
 }
 
 enum LoadedEngine {
+    /// transcribe-rs WhisperEngine (fallback, toujours disponible)
     Whisper(WhisperEngine),
+    /// whisper.cpp FFI natif (activé quand whisper_native cfg = true)
+    /// Offre CoreML encoder (ANE) + Metal decoder — latence ~2-3x inférieure
+    #[cfg(whisper_native)]
+    WhisperFfi(crate::whisper_ffi::WhisperContext),
 }
 
 #[derive(Clone)]
@@ -143,6 +148,9 @@ impl TranscriptionManager {
             if let Some(ref mut loaded_engine) = *engine {
                 match loaded_engine {
                     LoadedEngine::Whisper(ref mut e) => e.unload_model(),
+                    // WhisperFfi se décharge via Drop automatiquement
+                    #[cfg(whisper_native)]
+                    LoadedEngine::WhisperFfi(_) => {}
                 }
             }
             *engine = None;
@@ -211,6 +219,45 @@ impl TranscriptionManager {
 
         let model_path = self.model_manager.get_model_path(model_id)?;
 
+        // Essayer whisper_ffi natif (CoreML + Metal) si disponible
+        #[cfg(whisper_native)]
+        {
+            match crate::whisper_ffi::WhisperContext::load(&model_path) {
+                Ok(ctx) => {
+                    info!(
+                        "whisper.cpp natif chargé — CoreML: {}, Metal: {}",
+                        crate::whisper_ffi::is_coreml_available(),
+                        crate::whisper_ffi::is_metal_available()
+                    );
+                    let mut engine_guard = self.lock_engine();
+                    *engine_guard = Some(LoadedEngine::WhisperFfi(ctx));
+                    let mut current_model = self.current_model_id.lock().unwrap();
+                    *current_model = Some(model_id.to_string());
+                    drop(current_model);
+                    drop(engine_guard);
+                    let _ = self.app_handle.emit(
+                        "model-state-changed",
+                        ModelStateEvent {
+                            event_type: "loading_completed".to_string(),
+                            model_id: Some(model_id.to_string()),
+                            model_name: Some(model_info.name.clone()),
+                            error: None,
+                        },
+                    );
+                    debug!(
+                        "STT model loaded via whisper_ffi in {}ms: {}",
+                        load_start.elapsed().as_millis(),
+                        model_id
+                    );
+                    return Ok(());
+                }
+                Err(e) => {
+                    warn!("whisper_ffi::load() échoué, fallback transcribe-rs: {}", e);
+                }
+            }
+        }
+
+        // Fallback : transcribe-rs WhisperEngine
         let mut engine = WhisperEngine::new();
         engine.load_model(&model_path).map_err(|e| {
             let error_msg = format!("Failed to load whisper model {}: {}", model_id, e);
@@ -328,28 +375,46 @@ impl TranscriptionManager {
             };
             drop(engine_guard);
 
-            let transcribe_result = catch_unwind(AssertUnwindSafe(|| {
-                match &mut engine {
-                    LoadedEngine::Whisper(whisper_engine) => {
-                        // Params FR optimisés (ADR-002)
-                        // beam_size=1 + temperature=0.0 → greedy, ~100ms de gain
-                        let params = WhisperInferenceParams {
-                            // Forcer FR sauf si l'utilisateur a configuré une autre langue
-                            language: if settings.selected_language == "auto" {
-                                Some("fr".to_string())
-                            } else {
-                                Some(settings.selected_language.clone())
-                            },
-                            translate: settings.translate_to_english,
-                            ..Default::default()
-                        };
-
-                        whisper_engine
-                            .transcribe_samples(audio, Some(params))
-                            .map_err(|e| anyhow::anyhow!("Whisper transcription failed: {}", e))
+            // Retourne (text, no_speech_prob_optionnel)
+            // - WhisperFfi : no_speech_prob réel depuis whisper.cpp
+            // - Whisper    : None (heuristique utilisée plus bas)
+            let transcribe_result: std::thread::Result<Result<(String, Option<f32>)>> =
+                catch_unwind(AssertUnwindSafe(|| {
+                    match &mut engine {
+                        #[cfg(whisper_native)]
+                        LoadedEngine::WhisperFfi(ctx) => {
+                            // Chemin natif : whisper.cpp CoreML encoder (ANE) + Metal decoder
+                            let params = crate::whisper_ffi::WhisperParams {
+                                language: if settings.selected_language == "auto" {
+                                    "fr".to_string()
+                                } else {
+                                    settings.selected_language.clone()
+                                },
+                                translate: settings.translate_to_english,
+                                ..Default::default()
+                            };
+                            ctx.transcribe(&audio, &params)
+                                .map(|r| (r.text, Some(r.no_speech_prob)))
+                                .map_err(|e| anyhow::anyhow!("whisper_ffi failed: {}", e))
+                        }
+                        LoadedEngine::Whisper(whisper_engine) => {
+                            // Fallback : transcribe-rs (ADR-002 greedy FR)
+                            let params = WhisperInferenceParams {
+                                language: if settings.selected_language == "auto" {
+                                    Some("fr".to_string())
+                                } else {
+                                    Some(settings.selected_language.clone())
+                                },
+                                translate: settings.translate_to_english,
+                                ..Default::default()
+                            };
+                            whisper_engine
+                                .transcribe_samples(audio, Some(params))
+                                .map(|o| (o.text, None::<f32>))
+                                .map_err(|e| anyhow::anyhow!("Whisper transcription failed: {}", e))
+                        }
                     }
-                }
-            }));
+                }));
 
             match transcribe_result {
                 Ok(inner_result) => {
@@ -390,15 +455,18 @@ impl TranscriptionManager {
             }
         };
 
+        // result = (text: String, no_speech_prob: Option<f32>)
+        let (raw_text, no_speech_prob_opt) = result;
+
         // Correction des mots personnalisés
         let corrected = if !settings.custom_words.is_empty() {
             apply_custom_words(
-                &result.text,
+                &raw_text,
                 &settings.custom_words,
                 settings.word_correction_threshold,
             )
         } else {
-            result.text.clone()
+            raw_text
         };
 
         // Filtrage filler words et hallucinations
@@ -413,14 +481,17 @@ impl TranscriptionManager {
 
         self.maybe_unload_immediately("transcription");
 
-        // TODO Task 4-5 : extraire le vrai score de confiance depuis whisper.cpp FFI
-        // Pour l'instant : score basé sur la longueur du texte (heuristique simple)
+        // Calcul du score de confiance :
+        // - whisper_ffi : 1.0 - no_speech_prob (score réel depuis whisper.cpp)
+        // - transcribe-rs fallback : heuristique longueur (jusqu'à Task 3-4)
         let confidence = if filtered.is_empty() {
             0.0
+        } else if let Some(nsp) = no_speech_prob_opt {
+            (1.0 - nsp).clamp(0.0, 1.0) // Score réel depuis whisper.cpp FFI
         } else if filtered.split_whitespace().count() <= 30 {
-            0.90 // Phrases courtes → confiance élevée par défaut
+            0.90 // Heuristique : phrases courtes → confiance élevée
         } else {
-            0.75 // Phrases longues → passer par le LLM
+            0.75 // Heuristique : phrases longues → LLM conditionnel
         };
 
         Ok(TranscriptionOutput {

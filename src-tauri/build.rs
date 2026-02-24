@@ -1,6 +1,58 @@
 fn main() {
+    // Lier whisper.cpp si compilé (Task 3 — scripts/build-whisper.sh)
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    link_whisper_cpp();
+
     generate_tray_translations();
     tauri_build::build()
+}
+
+/// Lier libwhisper.a si disponible dans vendor/whisper.cpp/build/
+///
+/// Prérequis : exécuter scripts/build-whisper.sh d'abord.
+/// Si la lib est absente, whisper_ffi.rs tombera sur les stubs (Err) au runtime.
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn link_whisper_cpp() {
+    use std::path::Path;
+
+    // Chemin attendu après scripts/build-whisper.sh
+    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+    let whisper_lib = Path::new(&manifest_dir)
+        .parent()
+        .unwrap()
+        .join("vendor/whisper.cpp/build/src/libwhisper.a");
+    let ggml_lib = Path::new(&manifest_dir)
+        .parent()
+        .unwrap()
+        .join("vendor/whisper.cpp/build/ggml/src/libggml.a");
+
+    println!("cargo:rerun-if-changed=../vendor/whisper.cpp/build/src/libwhisper.a");
+
+    if whisper_lib.exists() && ggml_lib.exists() {
+        let whisper_search = whisper_lib.parent().unwrap().display();
+        let ggml_search = ggml_lib.parent().unwrap().display();
+
+        println!("cargo:rustc-link-search=native={whisper_search}");
+        println!("cargo:rustc-link-lib=static=whisper");
+        println!("cargo:rustc-link-search=native={ggml_search}");
+        println!("cargo:rustc-link-lib=static=ggml");
+
+        // Frameworks macOS requis par whisper.cpp/Metal
+        println!("cargo:rustc-link-lib=framework=Foundation");
+        println!("cargo:rustc-link-lib=framework=Metal");
+        println!("cargo:rustc-link-lib=framework=MetalPerformanceShaders");
+        println!("cargo:rustc-link-lib=framework=Accelerate");
+        // CoreML (si compilé avec WHISPER_COREML=ON)
+        println!("cargo:rustc-link-lib=framework=CoreML");
+
+        println!("cargo:rustc-cfg=whisper_native");
+        println!("cargo:warning=whisper.cpp natif activé (CoreML + Metal)");
+    } else {
+        println!(
+            "cargo:warning=whisper.cpp non compilé — mode stub actif. \
+             Exécuter scripts/build-whisper.sh pour activer CoreML+Metal."
+        );
+    }
 }
 
 /// Generate tray menu translations from frontend locale files.
