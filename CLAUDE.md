@@ -78,3 +78,5 @@ src/
 | 2026-02-24 | Initialisation CLAUDE.md + installation BMAD Method | CLAUDE.md, .bmad-core/ |
 | 2026-02-24 | BMAD Quick Spec Steps 1-4 terminés — tech-spec ready-for-dev. Revue 3 sources intégrée. | tech-spec-dictation-ia-locale-mvp.md, docs/technical-review-final.md |
 | 2026-02-24 | Tasks 1-5, 9-12 impl. cargo check propre (0 erreurs). Pipeline FR connecté. | src-tauri/ (Cargo.toml, build.rs, whisper_ffi.rs, transcription.rs, actions.rs, pipeline/) |
+| 2026-02-24 | Tasks 10/17/18/19. LLM Ollama HTTP, benchmarks latence (p99<415µs), WriteModeSelector UI. | cleanup.rs, rules.rs, tests/benchmark.rs, settings.rs, WriteModeSelector.tsx |
+| 2026-02-24 | Tasks 6/13/14/20-22. Swift plugins (ANE, MenuBar, AccessibilityPaste) + pipeline FR fin-tuning 35/35 tests. | WhisperANE.swift, MenuBar.swift, AccessibilityPaste.swift, rules.rs, orchestrator.rs |
