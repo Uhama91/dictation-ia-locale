@@ -91,6 +91,7 @@ static SPACE_AFTER_PUNCT_RE: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r"([.!?])([A-ZÀ-ÙÂÊÎÔÛa-zà-ùâêîôûäëïöü])").unwrap()
 });
 
+
 /// Applique toutes les règles de nettoyage FR sur le texte brut Whisper.
 ///
 /// Ordre des passes :
