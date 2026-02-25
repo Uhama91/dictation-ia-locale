@@ -1,0 +1,92 @@
+# generated: 2026-02-25
+# project: dictation-ia-locale
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: {output_folder}/implementation-artifacts
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog -> in-progress: Automatically when first story is created (via create-story)
+#   - in-progress -> done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Implementation complete, ready for review
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - SM typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+
+generated: 2026-02-25
+project: dictation-ia-locale
+project_key: NOKEY
+tracking_system: file-system
+story_location: "{output_folder}/implementation-artifacts"
+
+development_status:
+  # Epic 1 : Dictee vocale fondamentale
+  epic-1: in-progress
+  1-1-demarrer-arreter-dictee-raccourci-clavier: done
+  1-2-transcription-vocale-francais: done
+  1-3-nettoyage-automatique-texte-regles-fr: backlog
+  1-4-collage-automatique-curseur-actif: backlog
+  epic-1-retrospective: optional
+
+  # Epic 2 : Retour visuel et sonore
+  epic-2: backlog
+  2-1-son-confirmation-activation-arret: backlog
+  2-2-overlay-visuel-enregistrement-etats: backlog
+  epic-2-retrospective: optional
+
+  # Epic 3 : Modes d'ecriture intelligents
+  epic-3: backlog
+  3-1-selection-mode-ecriture: backlog
+  3-2-mode-chat-correction-minimale: backlog
+  3-3-mode-pro-reformulation-professionnelle: backlog
+  3-4-mode-code-preservation-jargon-technique: backlog
+  epic-3-retrospective: optional
+
+  # Epic 4 : Historique des dictees
+  epic-4: backlog
+  4-1-enregistrement-automatique-sessions: backlog
+  4-2-consultation-copie-historique: backlog
+  epic-4-retrospective: optional
+
+  # Epic 5 : Onboarding, modeles et vie privee
+  epic-5: backlog
+  5-1-detection-telechargement-whisper: backlog
+  5-2-detection-ollama-fallback: backlog
+  5-3-onboarding-permissions-macos: backlog
+  5-4-indicateur-vie-privee: backlog
+  epic-5-retrospective: optional
+
+  # Epic 6 : Identite visuelle DictAI
+  epic-6: backlog
+  6-1-theme-cahier-classe-design-tokens: backlog
+  6-2-navigation-simplifiee-3-sections: backlog
+  6-3-page-a-propos: backlog
+  epic-6-retrospective: optional
+
+  # Epic 7 : Parametres et personnalisation
+  epic-7: backlog
+  7-1-configuration-raccourci-clavier: backlog
+  7-2-selection-microphone-preferences-audio: backlog
+  7-3-acces-menu-bar-autostart: backlog
+  7-4-mode-debug-metriques-diagnostic: backlog
+  epic-7-retrospective: optional

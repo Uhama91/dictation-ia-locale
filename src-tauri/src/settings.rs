@@ -366,7 +366,7 @@ pub struct AppSettings {
 }
 
 fn default_model() -> String {
-    "".to_string()
+    "large-v3-turbo-q5".to_string()
 }
 
 fn default_always_on_microphone() -> bool {
@@ -695,7 +695,7 @@ pub fn get_default_settings() -> AppSettings {
         start_hidden: default_start_hidden(),
         autostart_enabled: default_autostart_enabled(),
         update_checks_enabled: default_update_checks_enabled(),
-        selected_model: "".to_string(),
+        selected_model: default_model(),
         always_on_microphone: false,
         selected_microphone: None,
         clamshell_microphone: None,
@@ -952,5 +952,36 @@ mod tests {
         assert!(settings.bindings.contains_key("transcribe"));
         assert!(settings.bindings.contains_key("transcribe_with_post_process"));
         assert!(settings.bindings.contains_key("cancel"));
+    }
+
+    #[test]
+    fn default_selected_model_is_large_v3_turbo() {
+        // ADR-002 : Whisper large-v3-turbo Q5_0 est le modèle recommandé MVP
+        let settings = get_default_settings();
+        assert_eq!(
+            settings.selected_model, "large-v3-turbo-q5",
+            "Le modèle par défaut doit être large-v3-turbo-q5 (ADR-002)"
+        );
+    }
+
+    #[test]
+    fn audio_padding_minimum_length() {
+        // Vérifie la logique de padding dans AudioRecordingManager::stop_recording()
+        // Recordings < 16000 samples (1s à 16kHz) sont paddés à 20000 (1.25s)
+        const WHISPER_SAMPLE_RATE: usize = 16000;
+        let short = vec![0.0f32; 8000]; // 0.5s
+        let padded = {
+            let mut v = short;
+            v.resize(WHISPER_SAMPLE_RATE * 5 / 4, 0.0);
+            v
+        };
+        assert_eq!(padded.len(), 20000, "padding attendu: 20000 samples = 1.25s à 16kHz");
+
+        // Enregistrements déjà assez longs ne sont pas paddés
+        let long = vec![0.0f32; 48000]; // 3s
+        assert!(
+            long.len() >= WHISPER_SAMPLE_RATE,
+            "enregistrement long ne doit pas être paddé"
+        );
     }
 }

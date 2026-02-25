@@ -53,6 +53,20 @@ fn build_system_prompt(prompt_template: &str) -> String {
     prompt_template.replace("${output}", "").trim().to_string()
 }
 
+/// Retourne la mémoire RSS du processus courant en MB (macOS uniquement, via `ps`).
+/// Utilisé pour les logs de tests manuels Task 8 — pas de dépendance externe.
+fn get_rss_mb() -> u64 {
+    let pid = std::process::id();
+    std::process::Command::new("ps")
+        .args(["-o", "rss=", "-p", &pid.to_string()])
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .and_then(|s| s.trim().parse::<u64>().ok())
+        .map(|kb| kb / 1024)
+        .unwrap_or(0)
+}
+
 async fn post_process_transcription(settings: &AppSettings, transcription: &str) -> Option<String> {
     let provider = match settings.active_post_process_provider().cloned() {
         Some(provider) => provider,
@@ -279,6 +293,7 @@ impl ShortcutAction for TranscribeAction {
         if recording_started {
             // Dynamically register the cancel shortcut in a separate task to avoid deadlock
             shortcut::register_cancel_shortcut(app);
+            info!("[BENCH] 🎙 Enregistrement démarré — RAM: {}MB", get_rss_mb());
         }
 
         debug!(
@@ -313,6 +328,8 @@ impl ShortcutAction for TranscribeAction {
 
         tauri::async_runtime::spawn(async move {
             let _guard = FinishGuard(ah.clone());
+            let pipeline_start = Instant::now();
+            info!("[BENCH] 🔄 Pipeline STT démarré — RAM: {}MB", get_rss_mb());
             let binding_id = binding_id.clone(); // Clone for the inner async task
             debug!(
                 "Starting async transcription task for binding: {}",
@@ -334,6 +351,7 @@ impl ShortcutAction for TranscribeAction {
                     Ok(output) => {
                         let raw_transcription = output.text;
                         let confidence = output.confidence;
+                        let stt_duration_ms = output.duration_ms;
                         info!(
                             "[STT] Transcription brute : «{}» (confiance: {:.2}, durée: {:?})",
                             raw_transcription,
@@ -415,10 +433,18 @@ impl ShortcutAction for TranscribeAction {
                             let paste_time = Instant::now();
                             ah.run_on_main_thread(move || {
                                 match utils::paste(final_text, ah_clone.clone()) {
-                                    Ok(()) => debug!(
-                                        "Text pasted successfully in {:?}",
-                                        paste_time.elapsed()
-                                    ),
+                                    Ok(()) => {
+                                        debug!(
+                                            "Text pasted successfully in {:?}",
+                                            paste_time.elapsed()
+                                        );
+                                        info!(
+                                            "[BENCH] ✅ Pipeline complet: {}ms total | STT: {}ms | RAM: {}MB",
+                                            pipeline_start.elapsed().as_millis(),
+                                            stt_duration_ms,
+                                            get_rss_mb()
+                                        );
+                                    }
                                     Err(e) => error!("Failed to paste transcription: {}", e),
                                 }
                                 // Hide the overlay after transcription is complete

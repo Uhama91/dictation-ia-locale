@@ -484,15 +484,7 @@ impl TranscriptionManager {
         // Calcul du score de confiance :
         // - whisper_ffi : 1.0 - no_speech_prob (score réel depuis whisper.cpp)
         // - transcribe-rs fallback : heuristique longueur (jusqu'à Task 3-4)
-        let confidence = if filtered.is_empty() {
-            0.0
-        } else if let Some(nsp) = no_speech_prob_opt {
-            (1.0 - nsp).clamp(0.0, 1.0) // Score réel depuis whisper.cpp FFI
-        } else if filtered.split_whitespace().count() <= 30 {
-            0.90 // Heuristique : phrases courtes → confiance élevée
-        } else {
-            0.75 // Heuristique : phrases longues → LLM conditionnel
-        };
+        let confidence = compute_confidence(&filtered, no_speech_prob_opt);
 
         Ok(TranscriptionOutput {
             text: filtered,
@@ -515,5 +507,76 @@ impl Drop for TranscriptionManager {
                 warn!("Failed to join idle watcher thread: {:?}", e);
             }
         }
+    }
+}
+
+/// Calcule le score de confiance de transcription (extrait pour testabilité).
+///
+/// - whisper_ffi (chemin natif) : `1.0 - no_speech_prob` depuis whisper.cpp
+/// - transcribe-rs fallback : heuristique word_count
+///   - texte vide → 0.0
+///   - <= 30 mots → 0.90 (phrases courtes → confiance élevée, fast-path rules)
+///   - > 30 mots → 0.75 (phrases longues → LLM conditionnel)
+pub fn compute_confidence(text: &str, no_speech_prob: Option<f32>) -> f32 {
+    if text.is_empty() {
+        0.0
+    } else if let Some(nsp) = no_speech_prob {
+        (1.0 - nsp).clamp(0.0, 1.0)
+    } else if text.split_whitespace().count() <= 30 {
+        0.90
+    } else {
+        0.75
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn confidence_empty_text_is_zero() {
+        assert_eq!(compute_confidence("", None), 0.0);
+        assert_eq!(compute_confidence("", Some(0.1)), 0.0);
+    }
+
+    #[test]
+    fn confidence_from_no_speech_prob_real_score() {
+        // Chemin whisper_ffi : confiance = 1.0 - no_speech_prob
+        let c = compute_confidence("bonjour le monde", Some(0.1));
+        assert!((c - 0.9).abs() < 1e-6, "expected ~0.9, got {c}");
+
+        let c_high = compute_confidence("test", Some(0.05));
+        assert!((c_high - 0.95).abs() < 1e-6);
+
+        // Valeur extrême clampée à 1.0
+        let c_max = compute_confidence("test", Some(0.0));
+        assert_eq!(c_max, 1.0);
+    }
+
+    #[test]
+    fn confidence_heuristic_short_phrase() {
+        // Fallback transcribe-rs : <= 30 mots → 0.90 (fast-path rules)
+        let text = "bonjour je voudrais commander une pizza";
+        assert_eq!(compute_confidence(text, None), 0.90);
+    }
+
+    #[test]
+    fn confidence_heuristic_long_phrase() {
+        // > 30 mots → 0.75 (LLM conditionnel)
+        let text = "un deux trois quatre cinq six sept huit neuf dix onze douze treize quatorze \
+                    quinze seize dix-sept dix-huit dix-neuf vingt vingt-et-un vingt-deux \
+                    vingt-trois vingt-quatre vingt-cinq vingt-six vingt-sept vingt-huit \
+                    vingt-neuf trente trente-et-un";
+        let word_count = text.split_whitespace().count();
+        assert!(word_count > 30, "phrase de test trop courte: {word_count} mots");
+        assert_eq!(compute_confidence(text, None), 0.75);
+    }
+
+    #[test]
+    fn confidence_heuristic_boundary_30_words() {
+        // Exactement 30 mots → 0.90 (inclus dans fast-path)
+        let text: String = (0..30).map(|_| "mot").collect::<Vec<_>>().join(" ");
+        assert_eq!(text.split_whitespace().count(), 30);
+        assert_eq!(compute_confidence(&text, None), 0.90);
     }
 }
