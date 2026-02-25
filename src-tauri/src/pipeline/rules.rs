@@ -15,6 +15,10 @@ use regex::Regex;
 /// Liste étendue (Task 20) avec des expressions multi-mots sans ambiguïté.
 /// Les alternatives multi-mots sont listées AVANT les sous-chaînes pour éviter
 /// les correspondances partielles (ex: "disons que" avant "disons").
+///
+/// Note : "en fait" peut être un connecteur légitime ("le problème, en fait, est…").
+/// En contexte de dictée vocale, c'est quasi-toujours un filler — accepté comme trade-off.
+/// Le mode Pro/LLM peut restituer le connecteur si nécessaire.
 static FILLER_WORDS_RE: Lazy<Regex> = Lazy::new(|| {
     Regex::new(
         r"(?i)\b(euh+|heu+|bah|bon ben|ben|disons que|disons|du coup|en quelque sorte|si tu veux|en tout cas|tu vois|vous voyez|n'est-ce pas|pas vrai|à vrai dire|en gros|genre|voilà|quoi|en fait|eh bien|hein|pfff?|ah bon|eh|ouais bon|bref)\b[,\s]*"
@@ -22,11 +26,11 @@ static FILLER_WORDS_RE: Lazy<Regex> = Lazy::new(|| {
 });
 
 /// Normalise les élisions avec espace parasite qu'insère parfois Whisper.
-/// Ex: "j' ai" → "j'ai", "c' est" → "c'est"
-/// La regex capture la lettre/groupe avant l'apostrophe et supprime l'espace.
-/// (Task 21)
+/// Ex: "j' ai" → "j'ai", "c' est" → "c'est", "s' il" → "s'il", "m' a" → "m'a"
+/// Couvre : j, c, n, l, d, qu, s, m (toutes les élisions FR courantes).
+/// (Task 21 + Story 1.3 Task 2)
 static ELISION_SPACE_RE: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"(?i)\b(j|c|n|l|d|qu)'\s+").unwrap()
+    Regex::new(r"(?i)\b(j|c|n|l|d|qu|s|m)'\s+").unwrap()
 });
 
 /// Trois points (ou plus) → ellipse unicode "…"
@@ -68,6 +72,10 @@ static DOUBLE_COLON_RE: Lazy<Regex> = Lazy::new(|| {
 
 /// Collapse les bégaiements (mots consécutifs identiques, insensible à la casse).
 /// La crate regex ne supporte pas les backreférences — implémentation manuelle.
+///
+/// Limitation connue : la comparaison est token-level (split_whitespace), donc
+/// "c'est, c'est" ne collapse pas ("c'est," != "c'est"). Acceptable car la
+/// ponctuation intermédiaire est rare dans les bégaiements réels Whisper.
 fn collapse_stutters(text: &str) -> String {
     let mut result: Vec<&str> = Vec::new();
     for word in text.split_whitespace() {
@@ -88,7 +96,7 @@ static MULTI_SPACE_RE: Lazy<Regex> = Lazy::new(|| {
 /// Ex: "Bonjour.Comment" → "Bonjour. Comment"
 static SPACE_AFTER_PUNCT_RE: Lazy<Regex> = Lazy::new(|| {
     // Ponctuation suivie directement d'une lettre (maj ou min, ASCII ou accents)
-    Regex::new(r"([.!?])([A-ZÀ-ÙÂÊÎÔÛa-zà-ùâêîôûäëïöü])").unwrap()
+    Regex::new(r"([.!?])([A-ZÀ-ÙÂÊÎÔÛÇa-zà-ùâêîôûçäëïöü])").unwrap()
 });
 
 
@@ -317,6 +325,22 @@ mod tests {
         assert!(result.contains("qu'il"));
     }
 
+    // ── Tests élisions s' et m' (Story 1.3 — Task 2) ──────────────────────
+
+    #[test]
+    fn test_elision_s_space() {
+        let result = apply("s' il vous plaît attendez");
+        assert!(!result.contains("s' "), "space after s' should be removed");
+        assert!(result.contains("s'il") || result.contains("S'il"));
+    }
+
+    #[test]
+    fn test_elision_m_space() {
+        let result = apply("il m' a dit bonjour");
+        assert!(!result.contains("m' "), "space after m' should be removed");
+        assert!(result.contains("m'a"));
+    }
+
     // ── Tests ponctuation doublée (Task 22) ────────────────────────────────
 
     #[test]
@@ -350,6 +374,58 @@ mod tests {
         assert!(!result.contains(",,"), "double comma should be collapsed to single");
     }
 
+    // ── Tests bégaiements avancés (Story 1.3 — Task 4) ────────────────────
+
+    #[test]
+    fn test_stutter_triple_repetition() {
+        assert_eq!(apply("je je je veux partir"), "Je veux partir.");
+    }
+
+    #[test]
+    fn test_stutter_case_insensitive() {
+        assert_eq!(apply("Je je veux partir"), "Je veux partir.");
+    }
+
+    #[test]
+    fn test_stutter_oui_oui_collapsed() {
+        // "oui oui" est traité comme un bégaiement (AC4 explicite)
+        assert_eq!(apply("oui oui d'accord"), "Oui d'accord.");
+    }
+
+    // ── Tests capitalisation avancés (Story 1.3 — Task 5) ───────────────
+
+    #[test]
+    fn test_capitalization_accented() {
+        assert_eq!(apply("écoute bien ce que je dis"), "Écoute bien ce que je dis.");
+    }
+
+    #[test]
+    fn test_preserves_existing_final_punctuation() {
+        assert_eq!(apply("c'est fini !"), "C'est fini !");
+        assert_eq!(apply("vraiment ?"), "Vraiment ?");
+        assert_eq!(apply("la liste :"), "La liste :");
+        assert_eq!(apply("attendez…"), "Attendez…");
+    }
+
+    // ── Tests filler words cas limites (Story 1.3 — Task 1.3) ──────────
+
+    #[test]
+    fn test_multiple_consecutive_fillers() {
+        let result = apply("euh bah du coup genre on y va");
+        assert!(!result.contains("euh"));
+        assert!(!result.contains("bah"));
+        assert!(!result.contains("du coup"));
+        assert!(!result.contains("genre"));
+        assert!(result.contains("On y va"));
+    }
+
+    #[test]
+    fn test_filler_at_end() {
+        let result = apply("je comprends quoi");
+        assert!(!result.contains("quoi"));
+        assert_eq!(result, "Je comprends.");
+    }
+
     // ── Tests espacement après ponctuation ─────────────────────────────────
 
     #[test]
@@ -365,6 +441,13 @@ mod tests {
         let result = apply("Tu viens?Bien sûr");
         assert!(result.contains("? Bien") || result.contains("? bien"),
             "espace attendu après le ?: {:?}", result);
+    }
+
+    #[test]
+    fn test_space_after_punct_cedilla() {
+        let result = apply("c'est fini.Ça continue");
+        assert!(result.contains(". Ça") || result.contains(". ça"),
+            "espace attendu après le point avant cédille: {:?}", result);
     }
 
     #[test]

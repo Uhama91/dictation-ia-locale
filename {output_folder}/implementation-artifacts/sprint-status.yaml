@@ -44,7 +44,7 @@ development_status:
   epic-1: in-progress
   1-1-demarrer-arreter-dictee-raccourci-clavier: done
   1-2-transcription-vocale-francais: done
-  1-3-nettoyage-automatique-texte-regles-fr: backlog
+  1-3-nettoyage-automatique-texte-regles-fr: done
   1-4-collage-automatique-curseur-actif: backlog
   epic-1-retrospective: optional
 
