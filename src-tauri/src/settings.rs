@@ -651,7 +651,7 @@ pub fn get_default_settings() -> AppSettings {
         ShortcutBinding {
             id: "transcribe".to_string(),
             name: "Mode Rapide".to_string(),
-            description: "Enregistre votre voix et transcrit avec règles FR (< 650ms).".to_string(),
+            description: "Démarre/arrête la dictée vocale".to_string(),
             default_binding: default_shortcut.to_string(),
             current_binding: default_shortcut.to_string(),
         },
@@ -873,5 +873,84 @@ mod tests {
         let settings = get_default_settings();
         assert!(!settings.auto_submit);
         assert_eq!(settings.auto_submit_key, AutoSubmitKey::Enter);
+    }
+
+    #[test]
+    fn default_transcribe_shortcut_matches_platform() {
+        let settings = get_default_settings();
+        let binding = settings.bindings.get("transcribe").expect("transcribe binding must exist");
+
+        #[cfg(target_os = "macos")]
+        {
+            assert_eq!(binding.default_binding, "option+space");
+            assert_eq!(binding.current_binding, "option+space");
+        }
+        #[cfg(target_os = "windows")]
+        {
+            assert_eq!(binding.default_binding, "ctrl+space");
+            assert_eq!(binding.current_binding, "ctrl+space");
+        }
+        #[cfg(target_os = "linux")]
+        {
+            assert_eq!(binding.default_binding, "ctrl+space");
+            assert_eq!(binding.current_binding, "ctrl+space");
+        }
+    }
+
+    #[test]
+    fn default_transcribe_description_is_dictee_vocale() {
+        let settings = get_default_settings();
+        let binding = settings.bindings.get("transcribe").expect("transcribe binding must exist");
+        assert_eq!(binding.description, "Démarre/arrête la dictée vocale");
+    }
+
+    #[test]
+    fn default_post_process_shortcut_matches_platform() {
+        let settings = get_default_settings();
+        let binding = settings
+            .bindings
+            .get("transcribe_with_post_process")
+            .expect("transcribe_with_post_process binding must exist");
+
+        #[cfg(target_os = "macos")]
+        {
+            assert_eq!(binding.default_binding, "option+shift+space");
+            assert_eq!(binding.current_binding, "option+shift+space");
+        }
+        #[cfg(target_os = "windows")]
+        {
+            assert_eq!(binding.default_binding, "ctrl+shift+space");
+            assert_eq!(binding.current_binding, "ctrl+shift+space");
+        }
+        #[cfg(target_os = "linux")]
+        {
+            assert_eq!(binding.default_binding, "ctrl+shift+space");
+            assert_eq!(binding.current_binding, "ctrl+shift+space");
+        }
+    }
+
+    #[test]
+    fn default_push_to_talk_is_true() {
+        let settings = get_default_settings();
+        assert!(settings.push_to_talk);
+    }
+
+    #[test]
+    fn transcribe_and_post_process_shortcuts_do_not_conflict() {
+        let settings = get_default_settings();
+        let transcribe = settings.bindings.get("transcribe").unwrap();
+        let post_process = settings.bindings.get("transcribe_with_post_process").unwrap();
+        assert_ne!(
+            transcribe.default_binding, post_process.default_binding,
+            "transcribe and post-process shortcuts must not conflict"
+        );
+    }
+
+    #[test]
+    fn all_required_bindings_exist_in_defaults() {
+        let settings = get_default_settings();
+        assert!(settings.bindings.contains_key("transcribe"));
+        assert!(settings.bindings.contains_key("transcribe_with_post_process"));
+        assert!(settings.bindings.contains_key("cancel"));
     }
 }

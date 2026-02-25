@@ -194,3 +194,38 @@ pub fn unregister_cancel_shortcut(app: &AppHandle) {
         });
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn validate_option_space_is_valid() {
+        assert!(validate_shortcut("option+space").is_ok());
+    }
+
+    #[test]
+    fn validate_option_shift_space_is_valid() {
+        assert!(validate_shortcut("option+shift+space").is_ok());
+    }
+
+    #[test]
+    fn validate_escape_is_valid() {
+        assert!(validate_shortcut("escape").is_ok());
+    }
+
+    #[test]
+    fn validate_empty_shortcut_is_invalid() {
+        assert!(validate_shortcut("").is_err());
+    }
+
+    #[test]
+    fn validate_modifier_only_is_invalid() {
+        assert!(validate_shortcut("cmd+shift").is_err());
+    }
+
+    #[test]
+    fn validate_fn_key_is_rejected() {
+        assert!(validate_shortcut("fn+d").is_err());
+    }
+}

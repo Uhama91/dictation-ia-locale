@@ -182,3 +182,22 @@ fn stop(app: &AppHandle, stage: &mut Stage, binding_id: &str, hotkey_string: &st
     action.stop(app, binding_id, hotkey_string);
     *stage = Stage::Processing;
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn is_transcribe_binding_recognizes_both_bindings() {
+        assert!(is_transcribe_binding("transcribe"));
+        assert!(is_transcribe_binding("transcribe_with_post_process"));
+    }
+
+    #[test]
+    fn is_transcribe_binding_rejects_other_bindings() {
+        assert!(!is_transcribe_binding("cancel"));
+        assert!(!is_transcribe_binding("test"));
+        assert!(!is_transcribe_binding(""));
+        assert!(!is_transcribe_binding("transcribe_something_else"));
+    }
+}
