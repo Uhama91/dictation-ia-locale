@@ -49,8 +49,8 @@ development_status:
   epic-1-retrospective: done
 
   # Epic 2 : Retour visuel et sonore
-  epic-2: backlog
-  2-1-son-confirmation-activation-arret: backlog
+  epic-2: in-progress
+  2-1-son-confirmation-activation-arret: review
   2-2-overlay-visuel-enregistrement-etats: backlog
   epic-2-retrospective: optional
 

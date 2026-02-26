@@ -237,6 +237,7 @@ impl ModelUnloadTimeout {
 pub enum SoundTheme {
     Marimba,
     Pop,
+    Cahier,
     Custom,
 }
 
@@ -245,6 +246,7 @@ impl SoundTheme {
         match self {
             SoundTheme::Marimba => "marimba",
             SoundTheme::Pop => "pop",
+            SoundTheme::Cahier => "cahier",
             SoundTheme::Custom => "custom",
         }
     }
@@ -437,7 +439,7 @@ fn default_audio_feedback_volume() -> f32 {
 }
 
 fn default_sound_theme() -> SoundTheme {
-    SoundTheme::Marimba
+    SoundTheme::Cahier
 }
 
 fn default_post_process_enabled() -> bool {
@@ -689,7 +691,7 @@ pub fn get_default_settings() -> AppSettings {
     AppSettings {
         bindings,
         push_to_talk: true,
-        audio_feedback: false,
+        audio_feedback: true,
         audio_feedback_volume: default_audio_feedback_volume(),
         sound_theme: default_sound_theme(),
         start_hidden: default_start_hidden(),
@@ -983,5 +985,58 @@ mod tests {
             long.len() >= WHISPER_SAMPLE_RATE,
             "enregistrement long ne doit pas être paddé"
         );
+    }
+
+    // ── Story 2.1 : Thème sonore Cahier ──
+
+    #[test]
+    fn sound_theme_cahier_as_str() {
+        assert_eq!(SoundTheme::Cahier.as_str(), "cahier");
+    }
+
+    #[test]
+    fn sound_theme_cahier_to_start_path() {
+        assert_eq!(
+            SoundTheme::Cahier.to_start_path(),
+            "resources/cahier_start.wav"
+        );
+    }
+
+    #[test]
+    fn sound_theme_cahier_to_stop_path() {
+        assert_eq!(
+            SoundTheme::Cahier.to_stop_path(),
+            "resources/cahier_stop.wav"
+        );
+    }
+
+    #[test]
+    fn default_sound_theme_is_cahier() {
+        assert_eq!(default_sound_theme(), SoundTheme::Cahier);
+    }
+
+    #[test]
+    fn default_settings_audio_feedback_enabled() {
+        let settings = get_default_settings();
+        assert!(
+            settings.audio_feedback,
+            "audio_feedback doit être activé par défaut (Story 2.1)"
+        );
+        assert_eq!(
+            settings.sound_theme,
+            SoundTheme::Cahier,
+            "Le thème par défaut doit être Cahier (Story 2.1)"
+        );
+    }
+
+    #[test]
+    fn sound_theme_cahier_serde_roundtrip() {
+        // Sérialiser
+        let json = serde_json::to_string(&SoundTheme::Cahier).unwrap();
+        assert_eq!(json, "\"cahier\"", "SoundTheme::Cahier doit se sérialiser en \"cahier\"");
+
+        // Désérialiser
+        let deserialized: SoundTheme = serde_json::from_str("\"cahier\"").unwrap();
+        assert_eq!(deserialized, SoundTheme::Cahier, "\"cahier\" doit se désérialiser en SoundTheme::Cahier");
     }
 }
