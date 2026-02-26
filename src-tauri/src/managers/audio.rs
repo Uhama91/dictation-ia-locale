@@ -237,18 +237,17 @@ impl AudioRecordingManager {
     /* ---------- mode switching --------------------------------------------- */
 
     pub fn update_mode(&self, new_mode: MicrophoneMode) -> Result<(), anyhow::Error> {
-        let mode_guard = self.mode.lock().unwrap();
-        let cur_mode = mode_guard.clone();
+        // Read current mode and drop lock immediately to avoid lock inversion
+        // with try_start_recording() which locks state → mode.
+        let cur_mode = self.mode.lock().unwrap().clone();
 
         match (cur_mode, &new_mode) {
             (MicrophoneMode::AlwaysOn, MicrophoneMode::OnDemand) => {
                 if matches!(*self.state.lock().unwrap(), RecordingState::Idle) {
-                    drop(mode_guard);
                     self.stop_microphone_stream();
                 }
             }
             (MicrophoneMode::OnDemand, MicrophoneMode::AlwaysOn) => {
-                drop(mode_guard);
                 self.start_microphone_stream()?;
             }
             _ => {}
@@ -261,11 +260,14 @@ impl AudioRecordingManager {
     /* ---------- recording --------------------------------------------------- */
 
     pub fn try_start_recording(&self, binding_id: &str) -> bool {
+        // Read mode before locking state to avoid lock inversion deadlock
+        // with update_mode() which also accesses both locks.
+        let is_on_demand = matches!(*self.mode.lock().unwrap(), MicrophoneMode::OnDemand);
         let mut state = self.state.lock().unwrap();
 
         if let RecordingState::Idle = *state {
             // Ensure microphone is open in on-demand mode
-            if matches!(*self.mode.lock().unwrap(), MicrophoneMode::OnDemand) {
+            if is_on_demand {
                 if let Err(e) = self.start_microphone_stream() {
                     error!("Failed to open microphone stream: {e}");
                     return false;
@@ -331,9 +333,11 @@ impl AudioRecordingManager {
                 // Pad if very short
                 let s_len = samples.len();
                 // debug!("Got {} samples", s_len);
-                if s_len < WHISPER_SAMPLE_RATE && s_len > 0 {
+                // Pad audio shorter than 1.25s (Whisper minimum input length)
+                let min_samples = WHISPER_SAMPLE_RATE * 5 / 4; // 20000 samples = 1.25s
+                if s_len < min_samples && s_len > 0 {
                     let mut padded = samples;
-                    padded.resize(WHISPER_SAMPLE_RATE * 5 / 4, 0.0);
+                    padded.resize(min_samples, 0.0);
                     Some(padded)
                 } else {
                     Some(samples)

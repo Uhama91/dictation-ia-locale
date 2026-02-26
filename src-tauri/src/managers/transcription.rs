@@ -58,6 +58,8 @@ pub struct TranscriptionManager {
     watcher_handle: Arc<Mutex<Option<thread::JoinHandle<()>>>>,
     is_loading: Arc<Mutex<bool>>,
     loading_condvar: Arc<Condvar>,
+    /// Guard against concurrent transcribe() calls — prevents engine.take() race condition
+    is_transcribing: Arc<AtomicBool>,
 }
 
 impl TranscriptionManager {
@@ -77,6 +79,7 @@ impl TranscriptionManager {
             watcher_handle: Arc::new(Mutex::new(None)),
             is_loading: Arc::new(Mutex::new(false)),
             loading_condvar: Arc::new(Condvar::new()),
+            is_transcribing: Arc::new(AtomicBool::new(false)),
         };
 
         // Démarrer le watcher de déchargement par inactivité
@@ -309,9 +312,17 @@ impl TranscriptionManager {
         *is_loading = true;
         let self_clone = self.clone();
         thread::spawn(move || {
-            let settings = get_settings(&self_clone.app_handle);
-            if let Err(e) = self_clone.load_model(&settings.selected_model) {
-                error!("Failed to load model: {}", e);
+            // Wrap in catch_unwind to ensure is_loading is always reset,
+            // even if the model loading thread panics. Without this,
+            // is_loading stays true forever and transcribe() blocks indefinitely.
+            let result = catch_unwind(AssertUnwindSafe(|| {
+                let settings = get_settings(&self_clone.app_handle);
+                if let Err(e) = self_clone.load_model(&settings.selected_model) {
+                    error!("Failed to load model: {}", e);
+                }
+            }));
+            if result.is_err() {
+                error!("Model loading thread panicked — resetting is_loading");
             }
             let mut is_loading = self_clone.is_loading.lock().unwrap();
             *is_loading = false;
@@ -350,6 +361,21 @@ impl TranscriptionManager {
                 duration_ms: 0,
             });
         }
+
+        // Prevent concurrent transcribe() calls — engine.take() would return None
+        // for the second caller, producing a misleading "Model not loaded" error.
+        if self.is_transcribing.compare_exchange(
+            false, true, Ordering::Acquire, Ordering::Relaxed
+        ).is_err() {
+            return Err(anyhow::anyhow!("Transcription already in progress. Please wait."));
+        }
+
+        // Ensure is_transcribing is reset even on early return or panic
+        struct TranscribingGuard(Arc<AtomicBool>);
+        impl Drop for TranscribingGuard {
+            fn drop(&mut self) { self.0.store(false, Ordering::Release); }
+        }
+        let _transcribing_guard = TranscribingGuard(self.is_transcribing.clone());
 
         {
             let mut is_loading = self.is_loading.lock().unwrap();
