@@ -50,8 +50,8 @@ development_status:
 
   # Epic 2 : Retour visuel et sonore
   epic-2: in-progress
-  2-1-son-confirmation-activation-arret: review
-  2-2-overlay-visuel-enregistrement-etats: backlog
+  2-1-son-confirmation-activation-arret: done
+  2-2-overlay-visuel-enregistrement-etats: review
   epic-2-retrospective: optional
 
   # Epic 3 : Modes d'ecriture intelligents

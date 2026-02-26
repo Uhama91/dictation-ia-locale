@@ -1,15 +1,19 @@
 .recording-overlay {
-  height: 36px;
-  width: 172px;
-  display: grid;
-  grid-template-columns: auto 1fr auto;
+  height: 40px;
+  width: 200px;
+  display: flex;
   align-items: center;
-  padding: 6px;
-  background: #000000cc;
-  border-radius: 18px;
+  justify-content: center;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid #e5e2db;
+  border-radius: 20px;
   opacity: 0;
-  transition: opacity 300ms ease-out;
+  transform: translateY(-8px);
+  transition: opacity 200ms ease-out, transform 200ms ease-out;
   box-sizing: border-box;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
 }
 
 .overlay-left {
@@ -29,31 +33,15 @@
   justify-content: flex-end;
 }
 
-.bars-container {
-  display: flex;
-  align-items: end;
-  justify-content: center;
-  gap: 3px;
-  padding-bottom: 0px;
-  height: 24px;
-  overflow: hidden;
-}
-
-.bar {
-  width: 6px;
-  background: #ffe5ee;
-  max-height: 20px;
-  border-radius: 2px;
-  transition: height 80ms linear;
-  min-height: 4px;
-}
+/* CSS definitions for deprecated spirals are removed */
 
 .recording-overlay.fade-in {
   opacity: 1;
+  transform: translateY(0);
 }
 
 .transcribing-text {
-  color: white;
+  color: #2d7a4f;
   font-size: 12px;
   font-family:
     -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -86,10 +74,27 @@
 }
 
 .cancel-button:hover {
-  background: #faa2ca33;
+  background: #dc262620;
   transform: scale(1.05);
 }
 
 .cancel-button:active {
   transform: scale(0.95);
+}
+
+/* Success state */
+.overlay-success-icon {
+  color: #16a34a;
+}
+
+/* Error state */
+.overlay-error-text {
+  color: #dc2626;
+  font-size: 11px;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 150px;
 }
