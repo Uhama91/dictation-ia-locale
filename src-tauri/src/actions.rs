@@ -6,7 +6,8 @@ use crate::settings::{get_settings, AppSettings};
 use crate::shortcut;
 use crate::tray::{change_tray_icon, TrayIconState};
 use crate::utils::{
-    self, show_processing_overlay, show_recording_overlay, show_transcribing_overlay,
+    self, show_error_overlay, show_processing_overlay, show_recording_overlay,
+    show_success_overlay, show_transcribing_overlay,
 };
 use crate::TranscriptionCoordinator;
 use log::{debug, error, info, warn};
@@ -444,11 +445,14 @@ impl ShortcutAction for TranscribeAction {
                                             stt_duration_ms,
                                             get_rss_mb()
                                         );
+                                        // Show success overlay (auto-hides after 500ms)
+                                        show_success_overlay(&ah_clone);
                                     }
-                                    Err(e) => error!("Failed to paste transcription: {}", e),
+                                    Err(e) => {
+                                        error!("Failed to paste transcription: {}", e);
+                                        show_error_overlay(&ah_clone, "Échec du collage");
+                                    }
                                 }
-                                // Hide the overlay after transcription is complete
-                                utils::hide_recording_overlay(&ah_clone);
                                 change_tray_icon(&ah_clone, TrayIconState::Idle);
                             })
                             .unwrap_or_else(|e| {
@@ -463,7 +467,7 @@ impl ShortcutAction for TranscribeAction {
                     }
                     Err(err) => {
                         debug!("Global Shortcut Transcription error: {}", err);
-                        utils::hide_recording_overlay(&ah);
+                        show_error_overlay(&ah, &format!("Erreur transcription"));
                         change_tray_icon(&ah, TrayIconState::Idle);
                     }
                 }
