@@ -181,3 +181,27 @@ pub fn initialize_shortcuts(app: AppHandle) -> Result<(), String> {
     log::info!("Shortcuts initialized successfully");
     Ok(())
 }
+
+/// Check and request Accessibility permissions (macOS only).
+/// On macOS, this should be called after onboarding completes, following the same
+/// pattern as initialize_enigo and initialize_shortcuts.
+/// Returns true if permission is already granted, false if it was requested.
+#[specta::specta]
+#[tauri::command]
+pub fn check_accessibility_permission() -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        if crate::accessibility::check_permission() {
+            log::info!("[PASTE] Accessibility permission granted");
+            true
+        } else {
+            log::info!("[PASTE] Accessibility permission not granted — requesting...");
+            crate::accessibility::request_permission();
+            false
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        true
+    }
+}

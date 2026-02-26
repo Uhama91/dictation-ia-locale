@@ -475,6 +475,15 @@ async initializeShortcuts() : Promise<Result<null, string>> {
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Check and request Accessibility permissions (macOS only).
+ * On macOS, this should be called after onboarding completes, following the same
+ * pattern as initialize_enigo and initialize_shortcuts.
+ * Returns true if permission is already granted, false if it was requested.
+ */
+async checkAccessibilityPermission() : Promise<boolean> {
+    return await TAURI_INVOKE("check_accessibility_permission");
+},
 async getAvailableModels() : Promise<Result<ModelInfo[], string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_available_models") };

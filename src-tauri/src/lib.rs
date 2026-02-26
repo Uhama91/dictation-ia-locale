@@ -1,3 +1,4 @@
+mod accessibility;
 mod actions;
 pub mod whisper_ffi;
 mod audio_feedback;
@@ -314,6 +315,7 @@ pub fn run(cli_args: CliArgs) {
         commands::check_apple_intelligence_available,
         commands::initialize_enigo,
         commands::initialize_shortcuts,
+        commands::check_accessibility_permission,
         commands::models::get_available_models,
         commands::models::get_model_info,
         commands::models::download_model,
@@ -433,6 +435,10 @@ pub fn run(cli_args: CliArgs) {
             app.manage(TranscriptionCoordinator::new(app_handle.clone()));
 
             initialize_core_logic(&app_handle);
+
+            // Note: Accessibility permissions are NOT checked here.
+            // The frontend calls `check_accessibility_permission` after onboarding,
+            // following the same pattern as initialize_enigo and initialize_shortcuts.
 
             // Hide tray icon if --no-tray was passed
             if cli_args.no_tray {

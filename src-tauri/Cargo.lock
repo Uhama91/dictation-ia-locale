@@ -1326,6 +1326,7 @@ dependencies = [
  "futures-util",
  "handy-keys",
  "hound",
+ "libc",
  "llama-cpp-2",
  "log",
  "natural",

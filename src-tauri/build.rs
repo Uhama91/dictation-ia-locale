@@ -6,8 +6,94 @@ fn main() {
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     link_whisper_cpp();
 
+    // Compiler et lier le plugin Swift AccessibilityPaste (macOS uniquement)
+    #[cfg(target_os = "macos")]
+    compile_swift_plugins();
+
     generate_tray_translations();
     tauri_build::build()
+}
+
+/// Compile les plugins Swift (AccessibilityPaste.swift) en librairie statique
+/// et les lie au binaire Rust.
+///
+/// Requis pour que `dlsym("accessibility_paste_text")` trouve le symbole au runtime.
+/// Si swiftc echoue, le build continue — dlsym retournera null et le fallback Enigo prendra le relais.
+#[cfg(target_os = "macos")]
+fn compile_swift_plugins() {
+    use std::path::Path;
+    use std::process::Command;
+
+    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+    let swift_dir = Path::new(&manifest_dir).join("swift-plugin");
+    let accessibility_swift = swift_dir.join("AccessibilityPaste.swift");
+    let out_dir = std::env::var("OUT_DIR").unwrap();
+    let lib_path = format!("{out_dir}/libAccessibilityPaste.a");
+
+    println!("cargo:rerun-if-changed=swift-plugin/AccessibilityPaste.swift");
+
+    if !accessibility_swift.exists() {
+        println!("cargo:warning=AccessibilityPaste.swift introuvable — collage Accessibility désactivé");
+        return;
+    }
+
+    let status = Command::new("xcrun")
+        .args([
+            "swiftc",
+            "-emit-library",
+            "-static",
+            "-o",
+            &lib_path,
+            accessibility_swift.to_str().unwrap(),
+            "-module-name",
+            "AccessibilityPaste",
+        ])
+        .status();
+
+    match status {
+        Ok(s) if s.success() => {
+            println!("cargo:rustc-link-search=native={out_dir}");
+            // Force-load the static library so the linker retains @_cdecl symbols
+            // even though Rust never references them statically (we use dlsym at runtime).
+            // Without this, the linker strips unreferenced symbols from the archive.
+            println!("cargo:rustc-link-arg=-Wl,-force_load,{lib_path}");
+            println!("cargo:rustc-link-lib=static=AccessibilityPaste");
+            // Frameworks macOS requis par AccessibilityPaste.swift
+            println!("cargo:rustc-link-lib=framework=Foundation");
+            println!("cargo:rustc-link-lib=framework=ApplicationServices");
+            println!("cargo:rustc-link-lib=framework=AppKit");
+            // Swift runtime (requis pour les libs Swift statiques)
+            // swiftc -print-target-info donne le chemin du runtime
+            if let Ok(output) = Command::new("xcrun").args(["swiftc", "-print-target-info"]).output() {
+                if let Ok(info) = String::from_utf8(output.stdout) {
+                    // Extraire le runtimeLibraryPaths du JSON
+                    if let Some(paths_start) = info.find("\"runtimeLibraryPaths\"") {
+                        if let Some(bracket_start) = info[paths_start..].find('[') {
+                            if let Some(bracket_end) = info[paths_start + bracket_start..].find(']') {
+                                let paths_str = &info[paths_start + bracket_start + 1..paths_start + bracket_start + bracket_end];
+                                for path in paths_str.split(',') {
+                                    let path = path.trim().trim_matches('"').trim();
+                                    if !path.is_empty() {
+                                        println!("cargo:rustc-link-search=native={path}");
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            println!("cargo:warning=AccessibilityPaste.swift compilé — collage Accessibility activé");
+        }
+        Ok(s) => {
+            println!(
+                "cargo:warning=swiftc a échoué (exit code {:?}) — collage Accessibility désactivé, fallback Enigo",
+                s.code()
+            );
+        }
+        Err(e) => {
+            println!("cargo:warning=swiftc introuvable ({e}) — collage Accessibility désactivé, fallback Enigo");
+        }
+    }
 }
 
 /// Lier libwhisper.a si disponible dans vendor/whisper.cpp/build/

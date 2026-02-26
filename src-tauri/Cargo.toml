@@ -66,6 +66,9 @@ enigo = "0.6.1"
 # LLM — Qwen2.5-0.5B via llama.cpp
 llama-cpp-2 = { version = "0.1", optional = true }
 
+# FFI
+libc = "0.2"
+
 # Utilitaires
 anyhow = "1"
 env_filter = "0.1"

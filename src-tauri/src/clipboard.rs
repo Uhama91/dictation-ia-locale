@@ -61,6 +61,9 @@ fn paste_via_clipboard(
         }
     }
 
+    // Delai avant restauration du presse-papier.
+    // Note : le chemin Swift (AccessibilityPaste.swift) utilise 150ms via DispatchQueue.
+    // Ce chemin Enigo utilise 50ms car le keystroke est synchrone (pas de CGEvent async).
     std::thread::sleep(std::time::Duration::from_millis(50));
 
     // Restore original clipboard content
@@ -615,34 +618,66 @@ pub fn paste(text: String, app_handle: AppHandle) -> Result<(), String> {
         .map_err(|e| format!("Failed to lock Enigo: {}", e))?;
 
     // Perform the paste operation
-    match paste_method {
-        PasteMethod::None => {
-            info!("PasteMethod::None selected - skipping paste action");
+    // On macOS, try Accessibility API first (AXUIElement direct or Cmd+V via Swift FFI)
+    // before falling back to the Enigo-based paste methods.
+    #[cfg(target_os = "macos")]
+    let accessibility_handled = if paste_method != PasteMethod::None {
+        match crate::accessibility::paste_via_accessibility(&text) {
+            Ok(0) => {
+                info!("[PASTE] Success via AXUIElement direct (~2ms)");
+                true
+            }
+            Ok(1) => {
+                info!("[PASTE] Success via Cmd+V Swift fallback (~50ms)");
+                true
+            }
+            Ok(code) => {
+                info!("[PASTE] Unexpected accessibility return code: {}, falling back to Enigo", code);
+                false
+            }
+            Err(e) => {
+                info!("[PASTE] Accessibility paste failed: {}, falling back to Enigo", e);
+                false
+            }
         }
-        PasteMethod::Direct => {
-            paste_direct(
-                &mut enigo,
-                &text,
-                #[cfg(target_os = "linux")]
-                settings.typing_tool,
-            )?;
-        }
-        PasteMethod::CtrlV | PasteMethod::CtrlShiftV | PasteMethod::ShiftInsert => {
-            paste_via_clipboard(
-                &mut enigo,
-                &text,
-                &app_handle,
-                &paste_method,
-                paste_delay_ms,
-            )?
-        }
-        PasteMethod::ExternalScript => {
-            let script_path = settings
-                .external_script_path
-                .as_ref()
-                .filter(|p| !p.is_empty())
-                .ok_or("External script path is not configured")?;
-            paste_via_external_script(&text, script_path)?;
+    } else {
+        false
+    };
+
+    #[cfg(not(target_os = "macos"))]
+    let accessibility_handled = false;
+
+    if !accessibility_handled {
+        match paste_method {
+            PasteMethod::None => {
+                info!("PasteMethod::None selected - skipping paste action");
+            }
+            PasteMethod::Direct => {
+                paste_direct(
+                    &mut enigo,
+                    &text,
+                    #[cfg(target_os = "linux")]
+                    settings.typing_tool,
+                )?;
+            }
+            PasteMethod::CtrlV | PasteMethod::CtrlShiftV | PasteMethod::ShiftInsert => {
+                info!("[PASTE] Using Enigo clipboard paste method: {:?}", paste_method);
+                paste_via_clipboard(
+                    &mut enigo,
+                    &text,
+                    &app_handle,
+                    &paste_method,
+                    paste_delay_ms,
+                )?
+            }
+            PasteMethod::ExternalScript => {
+                let script_path = settings
+                    .external_script_path
+                    .as_ref()
+                    .filter(|p| !p.is_empty())
+                    .ok_or("External script path is not configured")?;
+                paste_via_external_script(&text, script_path)?;
+            }
         }
     }
 
