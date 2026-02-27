@@ -2,9 +2,7 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { SettingContainer } from "../ui/SettingContainer";
 import { useSettings } from "../../hooks/useSettings";
-
-const WRITE_MODES = ["chat", "pro", "code"] as const;
-type WriteMode = (typeof WRITE_MODES)[number];
+import { WRITE_MODES, WRITE_MODE_CONFIG, type WriteMode } from "@/config/writeModes";
 
 interface WriteModeButtonProps {
   mode: WriteMode;
@@ -32,7 +30,7 @@ const WriteModeButton: React.FC<WriteModeButtonProps> = ({
     ].join(" ")}
   >
     <span className="text-base leading-none mb-0.5">
-      {mode === "chat" ? "💬" : mode === "pro" ? "✉️" : "💻"}
+      {WRITE_MODE_CONFIG[mode].emoji}
     </span>
     <span>{label}</span>
   </button>

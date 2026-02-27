@@ -407,7 +407,9 @@
       "save": "Save transcription",
       "unsave": "Remove from saved",
       "delete": "Delete entry",
-      "deleteError": "Failed to delete entry. Please try again."
+      "deleteError": "Failed to delete entry. Please try again.",
+      "showRaw": "Show original transcription",
+      "showProcessed": "Show processed text"
     },
     "debug": {
       "title": "Debug",

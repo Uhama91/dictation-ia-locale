@@ -769,7 +769,7 @@ export type EngineType =
  * Whisper uniquement — Parakeet/Moonshine/SenseVoice retirés (MVP macOS FR)
  */
 "Whisper"
-export type HistoryEntry = { id: number; file_name: string; timestamp: number; saved: boolean; title: string; transcription_text: string; post_processed_text: string | null; post_process_prompt: string | null }
+export type HistoryEntry = { id: number; file_name: string; timestamp: number; saved: boolean; title: string; transcription_text: string; post_processed_text: string | null; post_process_prompt: string | null; write_mode: string | null }
 /**
  * Result of changing keyboard implementation
  */

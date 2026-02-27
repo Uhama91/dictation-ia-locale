@@ -49,7 +49,7 @@ export const HandyKeysShortcutInput: React.FC<HandyKeysShortcutInputProps> = ({
 
     // Stop listening for backend events
     if (unlistenRef.current) {
-      unlistenRef.current();
+      try { unlistenRef.current(); } catch (e) { console.debug("Tauri unlisten error ignored"); }
       unlistenRef.current = null;
     }
 
@@ -117,7 +117,7 @@ export const HandyKeysShortcutInput: React.FC<HandyKeysShortcutInputProps> = ({
 
             // Stop recording
             if (unlistenRef.current) {
-              unlistenRef.current();
+              try { unlistenRef.current(); } catch (e) { console.debug("Tauri unlisten error ignored"); }
               unlistenRef.current = null;
             }
             await commands.stopHandyKeysRecording().catch(console.error);
@@ -148,7 +148,7 @@ export const HandyKeysShortcutInput: React.FC<HandyKeysShortcutInputProps> = ({
       cleanup = true;
       window.removeEventListener("keydown", handleKeyDown);
       if (unlistenRef.current) {
-        unlistenRef.current();
+        try { unlistenRef.current(); } catch (e) { console.debug("Tauri unlisten error ignored"); }
         unlistenRef.current = null;
       }
       // Stop backend recording on unmount to prevent orphaned recording loops

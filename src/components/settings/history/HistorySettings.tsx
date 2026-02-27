@@ -7,7 +7,8 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { readFile } from "@tauri-apps/plugin-fs";
 import { commands, type HistoryEntry } from "@/bindings";
-import { formatDateTime } from "@/utils/dateFormat";
+import { formatDateTime, formatRelativeTime } from "@/utils/dateFormat";
+import { WRITE_MODE_CONFIG, type WriteMode } from "@/config/writeModes";
 import { useOsType } from "@/hooks/useOsType";
 
 interface OpenRecordingsButtonProps {
@@ -203,7 +204,7 @@ export const HistorySettings: React.FC = () => {
                 key={entry.id}
                 entry={entry}
                 onToggleSaved={() => toggleSaved(entry.id)}
-                onCopyText={() => copyToClipboard(entry.transcription_text)}
+                onCopyText={() => copyToClipboard(entry.post_processed_text ?? entry.transcription_text)}
                 getAudioUrl={getAudioUrl}
                 deleteAudio={deleteAudioEntry}
               />
@@ -232,6 +233,7 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
 }) => {
   const { t, i18n } = useTranslation();
   const [showCopied, setShowCopied] = useState(false);
+  const [showRawText, setShowRawText] = useState(false);
 
   const handleLoadAudio = useCallback(
     () => getAudioUrl(entry.file_name),
@@ -253,12 +255,30 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
     }
   };
 
-  const formattedDate = formatDateTime(String(entry.timestamp), i18n.language);
+  const relativeDate = formatRelativeTime(String(entry.timestamp), i18n.language);
+  const absoluteDate = formatDateTime(String(entry.timestamp), i18n.language);
+  const modeConfig = entry.write_mode && entry.write_mode in WRITE_MODE_CONFIG
+    ? WRITE_MODE_CONFIG[entry.write_mode as WriteMode]
+    : null;
+  const hasPostProcessed = entry.post_processed_text != null;
+  const displayText = hasPostProcessed && !showRawText
+    ? entry.post_processed_text!
+    : entry.transcription_text;
 
   return (
     <div className="px-4 py-2 pb-5 flex flex-col gap-3">
       <div className="flex justify-between items-center">
-        <p className="text-sm font-medium">{formattedDate}</p>
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-medium" title={absoluteDate}>
+            {relativeDate}
+          </p>
+          {modeConfig && entry.write_mode && (
+            <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border ${modeConfig.badgeClassName}`}>
+              <span>{modeConfig.emoji}</span>
+              {t(`settings.general.writeMode.modes.${entry.write_mode}.label`)}
+            </span>
+          )}
+        </div>
         <div className="flex items-center gap-1">
           <button
             onClick={handleCopyText}
@@ -300,8 +320,16 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
         </div>
       </div>
       <p className="italic text-text/90 text-sm pb-2 select-text cursor-text">
-        {entry.transcription_text}
+        {displayText}
       </p>
+      {hasPostProcessed && (
+        <button
+          onClick={() => setShowRawText(!showRawText)}
+          className="self-start text-[11px] text-text/40 hover:text-text/70 transition-colors cursor-pointer"
+        >
+          {showRawText ? t("settings.history.showProcessed") : t("settings.history.showRaw")}
+        </button>
+      )}
       <AudioPlayer onLoadRequest={handleLoadAudio} className="w-full" />
     </div>
   );

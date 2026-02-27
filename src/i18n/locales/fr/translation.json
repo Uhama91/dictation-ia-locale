@@ -407,7 +407,9 @@
       "save": "Enregistrer la transcription",
       "unsave": "Retirer des favoris",
       "delete": "Supprimer l'entrée",
-      "deleteError": "Échec de la suppression de l'entrée. Veuillez réessayer."
+      "deleteError": "Échec de la suppression de l'entrée. Veuillez réessayer.",
+      "showRaw": "Voir la transcription originale",
+      "showProcessed": "Voir le texte traité"
     },
     "debug": {
       "title": "Débogage",

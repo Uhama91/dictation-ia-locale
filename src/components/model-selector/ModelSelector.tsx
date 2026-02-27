@@ -138,8 +138,12 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ onError }) => {
 
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
-      modelStateUnlisten.then((fn) => fn());
-      downloadCompleteUnlisten.then((fn) => fn());
+      modelStateUnlisten.then((fn) => {
+        try { if (fn) fn(); } catch (e) { console.debug("Tauri unlisten error ignored"); }
+      });
+      downloadCompleteUnlisten.then((fn) => {
+        try { if (fn) fn(); } catch (e) { console.debug("Tauri unlisten error ignored"); }
+      });
     };
   }, [selectModel]);
 
@@ -199,14 +203,14 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ onError }) => {
       case "loading":
         return currentModelInfo
           ? t("modelSelector.loading", {
-              modelName: getTranslatedModelName(currentModelInfo, t),
-            })
+            modelName: getTranslatedModelName(currentModelInfo, t),
+          })
           : t("modelSelector.loadingGeneric");
       case "extracting":
         return currentModelInfo
           ? t("modelSelector.extracting", {
-              modelName: getTranslatedModelName(currentModelInfo, t),
-            })
+            modelName: getTranslatedModelName(currentModelInfo, t),
+          })
           : t("modelSelector.extractingGeneric");
       case "error":
         return modelError || t("modelSelector.modelError");

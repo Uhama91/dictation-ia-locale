@@ -38,7 +38,7 @@ int whisper_run(
     p->no_context       = true;   // Pas d'historique entre segments (dictée = phrases isolées)
     p->single_segment   = true;   // Un seul segment — évite le découpage multi-segment
     p->n_threads        = 4;      // M1 = 4 perf cores, saturer les cores efficaces
-    p->flash_attn       = true;   // Flash attention — réduit la mémoire et accélère l'inférence
+    // Note: flash_attn belongs to whisper_context_params, not whisper_full_params
 
     // --- Greedy optimisé ---
     p->greedy.best_of   = 1;      // Pas de beam search, un seul candidat (plus rapide)

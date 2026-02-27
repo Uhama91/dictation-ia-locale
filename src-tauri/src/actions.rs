@@ -412,9 +412,10 @@ impl ShortcutAction for TranscribeAction {
                                 }
                             }
 
-                            // Save to history with post-processed text and prompt
+                            // Save to history with post-processed text, prompt, and write mode
                             let hm_clone = Arc::clone(&hm);
                             let transcription_for_history = transcription.clone();
+                            let write_mode_str = settings_for_pipeline.write_mode.clone();
                             tauri::async_runtime::spawn(async move {
                                 if let Err(e) = hm_clone
                                     .save_transcription(
@@ -422,6 +423,7 @@ impl ShortcutAction for TranscribeAction {
                                         transcription_for_history,
                                         post_processed_text,
                                         post_process_prompt,
+                                        Some(write_mode_str),
                                     )
                                     .await
                                 {
