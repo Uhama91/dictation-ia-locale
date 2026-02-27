@@ -283,12 +283,31 @@ vi.mock("@/bindings", () => ({
       Promise.resolve({ status: "ok", data: "/tmp/dictai/logs" }),
     ),
     playTestSound: vi.fn(() => Promise.resolve()),
+    openRecordingsFolder: vi.fn(() =>
+      Promise.resolve({ status: "ok", data: null }),
+    ),
+    openLogDir: vi.fn(() =>
+      Promise.resolve({ status: "ok", data: null }),
+    ),
+    openAppDataDir: vi.fn(() =>
+      Promise.resolve({ status: "ok", data: null }),
+    ),
     isLaptop: vi.fn(() =>
       Promise.resolve({ status: "ok", data: false }),
     ),
   },
   events: {},
 }));
+
+// =============================================================================
+// Mock: navigator.clipboard
+// =============================================================================
+Object.assign(navigator, {
+  clipboard: {
+    writeText: vi.fn().mockResolvedValue(undefined),
+    readText: vi.fn().mockResolvedValue(""),
+  },
+});
 
 // =============================================================================
 // Mock: matchMedia (required by some UI components)
