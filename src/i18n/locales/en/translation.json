@@ -29,20 +29,20 @@
     },
     "models": {
       "small": {
-        "name": "Whisper Small",
-        "description": "Fast and fairly accurate."
+        "name": "Fast Model",
+        "description": "Ideal for short, responsive dictations."
       },
       "medium": {
-        "name": "Whisper Medium",
-        "description": "Good accuracy, medium speed"
+        "name": "Balanced Model",
+        "description": "Good balance between speed and accuracy."
       },
       "turbo": {
-        "name": "Whisper Turbo",
-        "description": "Balanced accuracy and speed."
+        "name": "Recommended Model",
+        "description": "Best speed-to-accuracy ratio."
       },
       "large": {
-        "name": "Whisper Large",
-        "description": "Good accuracy, but slow."
+        "name": "Accurate Model",
+        "description": "Maximum accuracy, longer processing time."
       },
       "parakeet-tdt-0.6b-v2": {
         "name": "Parakeet V2",
@@ -79,27 +79,48 @@
     },
     "errors": {
       "loadModels": "Failed to load available models",
-      "downloadModel": "Failed to download model: {{error}}"
+      "downloadModel": "Failed to download model: {{error}}",
+      "downloadFailedInline": "Internet connection required for the first download.",
+      "retry": "Retry"
     },
     "permissions": {
       "title": "Permissions Required",
-      "description": "Handy needs a couple of permissions to work properly.",
+      "description": "DictAI needs a couple of permissions to work properly.",
       "microphone": {
         "title": "Microphone Access",
-        "description": "Required to hear your voice for transcription."
+        "description": "Your audio is processed locally and never sent over the internet.",
+        "grant": "Allow Microphone"
       },
       "accessibility": {
         "title": "Accessibility Access",
-        "description": "Required to type transcribed text into your applications."
+        "description": "Required to type transcribed text into your applications.",
+        "grant": "Allow Accessibility"
       },
       "grant": "Grant Permission",
       "granted": "Granted",
       "waiting": "Waiting...",
       "allGranted": "All set!",
+      "denied": {
+        "microphone": "Without microphone access, DictAI won't be able to transcribe your voice.",
+        "accessibility": "Without accessibility access, DictAI won't be able to paste text into your applications.",
+        "openSettings": "Open System Settings",
+        "continueAnyway": "Continue without these permissions"
+      },
       "errors": {
         "checkFailed": "Failed to check permissions. Please try again.",
         "requestFailed": "Failed to request permission. Please try again."
       }
+    },
+    "quickTest": {
+      "title": "Quick Test",
+      "description": "Verify everything works by dictating a short phrase.",
+      "startButton": "Start Test",
+      "recording": "Recording...",
+      "processing": "Processing...",
+      "result": "Result:",
+      "success": "Everything works perfectly!",
+      "continue": "Continue",
+      "skip": "Skip"
     }
   },
   "modelSelector": {
@@ -139,7 +160,7 @@
     "general": {
       "title": "General",
       "shortcut": {
-        "title": "Handy Shortcuts",
+        "title": "DictAI Shortcuts",
         "description": "Configure keyboard shortcuts to trigger speech-to-text recording",
         "loading": "Loading shortcuts...",
         "none": "No shortcuts configured",
@@ -256,11 +277,11 @@
       },
       "autostart": {
         "label": "Launch on Startup",
-        "description": "Automatically start Handy when you log in to your computer."
+        "description": "Automatically start DictAI when you log in to your computer."
       },
       "showTrayIcon": {
         "label": "Show Tray Icon",
-        "description": "Display the Handy icon in the system tray."
+        "description": "Display the DictAI icon in the system tray."
       },
       "overlay": {
         "title": "Overlay Position",
@@ -423,7 +444,7 @@
       },
       "updateChecks": {
         "label": "Check for Updates",
-        "description": "Automatically check for new versions of Handy"
+        "description": "Automatically check for new versions of DictAI"
       },
       "soundTheme": {
         "label": "Sound Theme",
@@ -487,11 +508,11 @@
       "title": "About",
       "version": {
         "title": "Version",
-        "description": "Current version of Handy"
+        "description": "Current version of DictAI"
       },
       "appDataDirectory": {
         "title": "App Data Directory",
-        "description": "Location where Handy stores its data"
+        "description": "Location where DictAI stores its data"
       },
       "sourceCode": {
         "title": "Source Code",
@@ -500,7 +521,7 @@
       },
       "supportDevelopment": {
         "title": "Support Development",
-        "description": "Help us continue building Handy",
+        "description": "Help us continue building DictAI",
         "button": "Donate"
       },
       "acknowledgments": {
@@ -508,7 +529,7 @@
         "whisper": {
           "title": "Whisper.cpp",
           "description": "High-performance inference of OpenAI's Whisper automatic speech recognition model",
-          "details": "Handy uses Whisper.cpp for fast, local speech-to-text processing. Thanks to the amazing work by Georgi Gerganov and contributors."
+          "details": "DictAI uses Whisper.cpp for fast, local speech-to-text processing. Thanks to the amazing work by Georgi Gerganov and contributors."
         }
       }
     }
@@ -551,7 +572,7 @@
   },
   "accessibility": {
     "permissionsRequired": "Accessibility Permissions Required",
-    "permissionsDescription": "Handy needs accessibility permissions to type transcribed text.",
+    "permissionsDescription": "DictAI needs accessibility permissions to type transcribed text.",
     "openSettings": "Open System Settings",
     "dismiss": "Dismiss"
   },
@@ -560,7 +581,17 @@
   },
   "appLanguage": {
     "title": "Application Language",
-    "description": "Change the language of the Handy interface"
+    "description": "Change the language of the DictAI interface"
+  },
+  "ollama": {
+    "banner": "For advanced corrections, install Ollama (free).",
+    "link": "Download Ollama",
+    "fallbackToast": "Simplified mode (Ollama unavailable)",
+    "dismiss": "Dismiss"
+  },
+  "privacy": {
+    "local": "Local",
+    "downloading": "Downloading"
   },
   "overlay": {
     "transcribing": "Transcribing...",

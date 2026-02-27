@@ -451,6 +451,13 @@ async checkAppleIntelligenceAvailable() : Promise<boolean> {
     return await TAURI_INVOKE("check_apple_intelligence_available");
 },
 /**
+ * Vérifie si Ollama est disponible avec le modèle qwen2.5:0.5b.
+ * Utilisé par le frontend pour afficher le banner "installer Ollama".
+ */
+async checkOllamaStatus() : Promise<boolean> {
+    return await TAURI_INVOKE("check_ollama_status");
+},
+/**
  * Try to initialize Enigo (keyboard/mouse simulation).
  * On macOS, this will return an error if accessibility permissions are not granted.
  */

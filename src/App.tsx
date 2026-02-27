@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
-import { Toaster } from "sonner";
+import { Toaster, toast } from "sonner";
 import { useTranslation } from "react-i18next";
+import { listen } from "@tauri-apps/api/event";
 import { platform } from "@tauri-apps/plugin-os";
 import {
   checkAccessibilityPermission,
@@ -10,13 +11,15 @@ import "./App.css";
 import AccessibilityPermissions from "./components/AccessibilityPermissions";
 import Footer from "./components/footer";
 import Onboarding, { AccessibilityOnboarding } from "./components/onboarding";
+import QuickTest from "./components/onboarding/QuickTest";
+import OllamaBanner from "./components/ui/OllamaBanner";
 import { Sidebar, SidebarSection, SECTIONS_CONFIG } from "./components/Sidebar";
 import { useSettings } from "./hooks/useSettings";
 import { useSettingsStore } from "./stores/settingsStore";
 import { commands } from "@/bindings";
 import { getLanguageDirection, initializeRTL } from "@/lib/utils/rtl";
 
-type OnboardingStep = "accessibility" | "model" | "done";
+type OnboardingStep = "accessibility" | "model" | "quicktest" | "done";
 
 const renderSettingsContent = (section: SidebarSection) => {
   const ActiveComponent =
@@ -25,7 +28,7 @@ const renderSettingsContent = (section: SidebarSection) => {
 };
 
 function App() {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [onboardingStep, setOnboardingStep] = useState<OnboardingStep | null>(
     null,
   );
@@ -93,6 +96,17 @@ function App() {
     };
   }, [settings?.debug_mode, updateSetting]);
 
+  // Listen for LLM fallback events (Ollama unavailable mid-session)
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    listen("llm-fallback", () => {
+      toast.info(t("ollama.fallbackToast"), { duration: 3000 });
+    }).then((fn) => {
+      unlisten = fn;
+    });
+    return () => unlisten?.();
+  }, [t]);
+
   const checkOnboardingStatus = async () => {
     try {
       // Check if they have any models available
@@ -137,7 +151,11 @@ function App() {
   };
 
   const handleModelSelected = () => {
-    // Transition to main app - user has started a download
+    // After model download, show quick test
+    setOnboardingStep("quicktest");
+  };
+
+  const handleQuickTestComplete = () => {
     setOnboardingStep("done");
   };
 
@@ -147,11 +165,15 @@ function App() {
   }
 
   if (onboardingStep === "accessibility") {
-    return <AccessibilityOnboarding onComplete={handleAccessibilityComplete} />;
+    return <AccessibilityOnboarding onComplete={handleAccessibilityComplete} isReturningUser={isReturningUser} />;
   }
 
   if (onboardingStep === "model") {
     return <Onboarding onModelSelected={handleModelSelected} />;
+  }
+
+  if (onboardingStep === "quicktest") {
+    return <QuickTest onComplete={handleQuickTestComplete} />;
   }
 
   return (
@@ -171,6 +193,7 @@ function App() {
           },
         }}
       />
+      <OllamaBanner />
       {/* Main content area that takes remaining space */}
       <div className="flex-1 flex overflow-hidden">
         <Sidebar

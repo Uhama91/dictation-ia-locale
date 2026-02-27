@@ -15,7 +15,7 @@ use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter};
 use tauri::Manager;
 
 /// Drop guard that notifies the [`TranscriptionCoordinator`] when the
@@ -379,6 +379,12 @@ impl ShortcutAction for TranscribeAction {
                             pipeline_result.duration_ms,
                             if pipeline_result.rules_only { "règles seules" } else { "règles + LLM" }
                         );
+
+                        // Émettre un event si le LLM a échoué (fallback mid-session)
+                        if pipeline_result.llm_fallback {
+                            let _ = ah.emit("llm-fallback", ());
+                        }
+
                         let transcription = pipeline_result.text;
 
                         if !transcription.is_empty() {

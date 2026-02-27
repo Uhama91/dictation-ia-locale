@@ -22,6 +22,8 @@ pub struct PipelineResult {
     pub text: String,
     /// true = traité par règles seules, false = LLM utilisé
     pub rules_only: bool,
+    /// true = le LLM était requis mais a échoué (fallback sur règles)
+    pub llm_fallback: bool,
     pub duration_ms: u64,
 }
 
@@ -74,23 +76,28 @@ pub fn process(
     );
 
     // Étape 2 : LLM conditionnel
-    let (final_text, rules_only) = match (decision, llm_cleanup_fn) {
+    let (final_text, rules_only, llm_fallback) = match (decision, llm_cleanup_fn) {
         (RoutingDecision::RulesAndLlm, Some(cleanup_fn)) => {
             match cleanup_fn(&rules_result, mode) {
-                Ok(llm_result) => (llm_result, false),
+                Ok(llm_result) => (llm_result, false, false),
                 Err(e) => {
                     log::warn!("LLM cleanup failed, falling back to rules: {}", e);
-                    (rules_result, true)
+                    (rules_result, true, true)
                 }
             }
         }
-        // LLM pas disponible ou routing fast-path
-        _ => (rules_result, true),
+        (RoutingDecision::RulesAndLlm, None) => {
+            // LLM requis mais pas disponible
+            (rules_result, true, true)
+        }
+        // Fast-path : règles seules (pas de fallback)
+        _ => (rules_result, true, false),
     };
 
     PipelineResult {
         text: final_text,
         rules_only,
+        llm_fallback,
         duration_ms: start.elapsed().as_millis() as u64,
     }
 }

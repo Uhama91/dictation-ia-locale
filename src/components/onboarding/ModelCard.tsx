@@ -1,11 +1,13 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import {
+  AlertTriangle,
   Check,
   Download,
   Globe,
   Languages,
   Loader2,
+  RefreshCw,
   Trash2,
 } from "lucide-react";
 import type { ModelInfo } from "@/bindings";
@@ -38,7 +40,8 @@ export type ModelCardStatus =
   | "extracting"
   | "switching"
   | "active"
-  | "available";
+  | "available"
+  | "error";
 
 interface ModelCardProps {
   model: ModelInfo;
@@ -50,6 +53,7 @@ interface ModelCardProps {
   onDownload?: (modelId: string) => void;
   onDelete?: (modelId: string) => void;
   onCancel?: (modelId: string) => void;
+  onRetry?: (modelId: string) => void;
   downloadProgress?: number;
   downloadSpeed?: number; // MB/s
   showRecommended?: boolean;
@@ -65,6 +69,7 @@ const ModelCard: React.FC<ModelCardProps> = ({
   onDownload,
   onDelete,
   onCancel,
+  onRetry,
   downloadProgress,
   downloadSpeed,
   showRecommended = true,
@@ -285,6 +290,30 @@ const ModelCard: React.FC<ModelCardProps> = ({
           <p className="text-xs text-text/50 mt-1">
             {t("modelSelector.extractingGeneric")}
           </p>
+        </div>
+      )}
+
+      {/* Error state with retry */}
+      {status === "error" && (
+        <div className="w-full mt-3 flex items-center gap-3 p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+          <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
+          <p className="text-xs text-red-400 flex-1">
+            {t("onboarding.errors.downloadFailedInline")}
+          </p>
+          {onRetry && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRetry(model.id);
+              }}
+              className="flex items-center gap-1.5 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>{t("onboarding.errors.retry")}</span>
+            </Button>
+          )}
         </div>
       )}
     </div>

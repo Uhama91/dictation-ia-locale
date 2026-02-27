@@ -11,13 +11,15 @@ import { toast } from "sonner";
 import { commands } from "@/bindings";
 import { useSettingsStore } from "@/stores/settingsStore";
 import HandyTextLogo from "../icons/HandyTextLogo";
-import { Keyboard, Mic, Check, Loader2 } from "lucide-react";
+import { Keyboard, Mic, Check, Loader2, ExternalLink } from "lucide-react";
+import { openUrl } from "@tauri-apps/plugin-opener";
 
 interface AccessibilityOnboardingProps {
   onComplete: () => void;
+  isReturningUser?: boolean;
 }
 
-type PermissionStatus = "checking" | "needed" | "waiting" | "granted";
+type PermissionStatus = "checking" | "needed" | "waiting" | "granted" | "denied";
 
 interface PermissionsState {
   accessibility: PermissionStatus;
@@ -26,6 +28,7 @@ interface PermissionsState {
 
 const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
   onComplete,
+  isReturningUser = false,
 }) => {
   const { t } = useTranslation();
   const refreshAudioDevices = useSettingsStore(
@@ -185,7 +188,7 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
       startPolling();
     } catch (error) {
       console.error("Failed to request accessibility permission:", error);
-      toast.error(t("onboarding.permissions.errors.requestFailed"));
+      setPermissions((prev) => ({ ...prev, accessibility: "denied" }));
     }
   };
 
@@ -196,7 +199,7 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
       startPolling();
     } catch (error) {
       console.error("Failed to request microphone permission:", error);
-      toast.error(t("onboarding.permissions.errors.requestFailed"));
+      setPermissions((prev) => ({ ...prev, microphone: "denied" }));
     }
   };
 
@@ -262,6 +265,19 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
                   <Check className="w-4 h-4" />
                   {t("onboarding.permissions.granted")}
                 </div>
+              ) : permissions.microphone === "denied" ? (
+                <div className="flex flex-col gap-2">
+                  <p className="text-xs text-red-400">
+                    {t("onboarding.permissions.denied.microphone")}
+                  </p>
+                  <button
+                    onClick={() => openUrl("x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-400 text-sm font-medium transition-colors"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    {t("onboarding.permissions.denied.openSettings")}
+                  </button>
+                </div>
               ) : permissions.microphone === "waiting" ? (
                 <div className="flex items-center gap-2 text-text/50 text-sm">
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -272,7 +288,7 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
                   onClick={handleGrantMicrophone}
                   className="px-4 py-2 rounded-lg bg-logo-primary hover:bg-logo-primary/90 text-white text-sm font-medium transition-colors"
                 >
-                  {t("onboarding.permissions.grant")}
+                  {t("onboarding.permissions.microphone.grant")}
                 </button>
               )}
             </div>
@@ -297,6 +313,19 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
                   <Check className="w-4 h-4" />
                   {t("onboarding.permissions.granted")}
                 </div>
+              ) : permissions.accessibility === "denied" ? (
+                <div className="flex flex-col gap-2">
+                  <p className="text-xs text-red-400">
+                    {t("onboarding.permissions.denied.accessibility")}
+                  </p>
+                  <button
+                    onClick={() => openUrl("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-400 text-sm font-medium transition-colors"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    {t("onboarding.permissions.denied.openSettings")}
+                  </button>
+                </div>
               ) : permissions.accessibility === "waiting" ? (
                 <div className="flex items-center gap-2 text-text/50 text-sm">
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -307,12 +336,22 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
                   onClick={handleGrantAccessibility}
                   className="px-4 py-2 rounded-lg bg-logo-primary hover:bg-logo-primary/90 text-white text-sm font-medium transition-colors"
                 >
-                  {t("onboarding.permissions.grant")}
+                  {t("onboarding.permissions.accessibility.grant")}
                 </button>
               )}
             </div>
           </div>
         </div>
+
+        {/* Continue without permissions (returning users only) */}
+        {isReturningUser && (
+          <button
+            onClick={onComplete}
+            className="mt-2 text-xs text-text/40 hover:text-text/60 transition-colors underline"
+          >
+            {t("onboarding.permissions.denied.continueAnyway")}
+          </button>
+        )}
       </div>
     </div>
   );

@@ -123,6 +123,14 @@ pub fn check_apple_intelligence_available() -> bool {
     false
 }
 
+/// Vérifie si Ollama est disponible avec le modèle qwen2.5:0.5b.
+/// Utilisé par le frontend pour afficher le banner "installer Ollama".
+#[specta::specta]
+#[tauri::command]
+pub fn check_ollama_status() -> bool {
+    crate::llm::cleanup::is_model_available()
+}
+
 /// Try to initialize Enigo (keyboard/mouse simulation).
 /// On macOS, this will return an error if accessibility permissions are not granted.
 #[specta::specta]
