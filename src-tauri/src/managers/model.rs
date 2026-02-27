@@ -163,6 +163,31 @@ impl ModelManager {
             },
         );
 
+        // Modèle Q8_0 — meilleur alignement GPU Metal (natif 8-bit vs dequant 5-bit)
+        // Même architecture large-v3-turbo, quantisation plus haute = moins de déquantification GPU
+        available_models.insert(
+            "large-v3-turbo-q8".to_string(),
+            ModelInfo {
+                id: "large-v3-turbo-q8".to_string(),
+                name: "Whisper large-v3-turbo Q8 (Perf Metal)".to_string(),
+                description: "Quantisation Q8 native GPU. Plus lourd (834 MB) mais potentiellement plus rapide sur Metal (moins de déquantification).".to_string(),
+                filename: "ggml-large-v3-turbo-q8_0.bin".to_string(),
+                url: Some("https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q8_0.bin".to_string()),
+                size_mb: 834,
+                is_downloaded: false,
+                is_downloading: false,
+                partial_size: 0,
+                is_directory: false,
+                engine_type: EngineType::Whisper,
+                accuracy_score: 0.96,
+                speed_score: 0.70,
+                supports_translation: false,
+                is_recommended: false,
+                supported_languages: whisper_languages.clone(),
+                is_custom: false,
+            },
+        );
+
         // Modèle Turbo original (legacy Handy, conservé comme fallback)
         available_models.insert(
             "turbo".to_string(),

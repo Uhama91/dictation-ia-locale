@@ -113,10 +113,10 @@ impl WhisperContext {
                     model_path.display()
                 ));
             }
-            // Metal disponible sur Apple Silicon (compilé avec GGML_METAL=ON)
-            // CoreML non disponible (nécessite Xcode complet + WHISPER_COREML=ON)
+            let coreml = cfg!(whisper_coreml);
             log::info!(
-                "whisper.cpp chargé — Metal: true (Apple Silicon), CoreML: false (CLT seulement)"
+                "whisper.cpp chargé — Metal: true (Apple Silicon), CoreML: {}",
+                if coreml { "true (Xcode complet)" } else { "false (CLT seulement)" }
             );
             Ok(Self { ptr })
         }
@@ -211,9 +211,9 @@ pub fn is_metal_available() -> bool {
     cfg!(all(target_os = "macos", target_arch = "aarch64", whisper_native))
 }
 
-/// CoreML nécessite Xcode complet + WHISPER_COREML=ON — non actif dans le build actuel
+/// CoreML disponible si compilé avec WHISPER_COREML=ON et Xcode complet
 pub fn is_coreml_available() -> bool {
-    false
+    cfg!(all(target_os = "macos", whisper_coreml, whisper_native))
 }
 
 #[cfg(test)]

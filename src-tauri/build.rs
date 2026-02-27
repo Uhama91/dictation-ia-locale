@@ -1,6 +1,7 @@
 fn main() {
     // Déclarer whisper_native comme cfg connu (évite les warnings unexpected_cfgs)
     println!("cargo:rustc-check-cfg=cfg(whisper_native)");
+    println!("cargo:rustc-check-cfg=cfg(whisper_coreml)");
 
     // Lier whisper.cpp si compilé (Task 3 — scripts/build-whisper.sh)
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
@@ -153,19 +154,31 @@ fn link_whisper_cpp() {
             .parent()
             .unwrap()
             .join("vendor/whisper.cpp/build/ggml/src/ggml-blas/libggml-blas.a");
+        let whisper_coreml_lib = Path::new(&manifest_dir)
+            .parent()
+            .unwrap()
+            .join("vendor/whisper.cpp/build/src/libwhisper.coreml.a");
 
         let out_dir = std::env::var("OUT_DIR").unwrap();
         let merged = format!("{out_dir}/libwhisper_full.a");
 
         // Fusion des archives avec libtool (disponible sur macOS)
-        let status = std::process::Command::new("libtool")
+        let mut libtool_cmd = std::process::Command::new("libtool");
+        libtool_cmd
             .args(["-static", "-o", &merged])
             .arg(&whisper_lib)
             .arg(&ggml_lib)
             .arg(&ggml_base_lib)
             .arg(&ggml_cpu_lib)
             .arg(&ggml_metal_lib)
-            .arg(&ggml_blas_lib)
+            .arg(&ggml_blas_lib);
+
+        // Ajouter CoreML si compilé avec WHISPER_COREML=ON (nécessite Xcode complet)
+        if whisper_coreml_lib.exists() {
+            libtool_cmd.arg(&whisper_coreml_lib);
+        }
+
+        let status = libtool_cmd
             .status()
             .expect("libtool non trouvé");
 
@@ -185,7 +198,12 @@ fn link_whisper_cpp() {
         println!("cargo:rustc-link-lib=framework=CoreML");
 
         println!("cargo:rustc-cfg=whisper_native");
-        println!("cargo:warning=whisper.cpp natif activé (Metal — CoreML nécessite Xcode complet)");
+        if whisper_coreml_lib.exists() {
+            println!("cargo:rustc-cfg=whisper_coreml");
+            println!("cargo:warning=whisper.cpp natif activé (Metal + CoreML — Xcode complet détecté)");
+        } else {
+            println!("cargo:warning=whisper.cpp natif activé (Metal uniquement — CoreML nécessite Xcode complet)");
+        }
     } else {
         println!(
             "cargo:warning=whisper.cpp non compilé — mode stub actif. \

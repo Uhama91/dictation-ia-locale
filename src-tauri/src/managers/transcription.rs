@@ -319,6 +319,11 @@ impl TranscriptionManager {
                 let settings = get_settings(&self_clone.app_handle);
                 if let Err(e) = self_clone.load_model(&settings.selected_model) {
                     error!("Failed to load model: {}", e);
+                } else {
+                    // Warm-up : pré-inférer un sample vide pour forcer Metal à compiler
+                    // ses shaders et allouer les buffers GPU. Élimine la latence à froid
+                    // sur la première vraie transcription.
+                    self_clone.warmup_model();
                 }
             }));
             if result.is_err() {
@@ -328,6 +333,40 @@ impl TranscriptionManager {
             *is_loading = false;
             self_clone.loading_condvar.notify_all();
         });
+    }
+
+    /// Warm-up GPU : exécute une inférence sur 1 seconde de silence
+    /// pour forcer la compilation des shaders Metal et l'allocation des buffers.
+    fn warmup_model(&self) {
+        let warmup_start = std::time::Instant::now();
+        info!("[WARMUP] Pré-inférence Metal en cours...");
+
+        // 1 seconde de silence à 16kHz
+        let silence: Vec<f32> = vec![0.0; 16000];
+
+        let mut engine_guard = self.lock_engine();
+        if let Some(ref mut engine) = *engine_guard {
+            match engine {
+                #[cfg(whisper_native)]
+                LoadedEngine::WhisperFfi(ctx) => {
+                    let params = crate::whisper_ffi::WhisperParams::default();
+                    match ctx.transcribe(&silence, &params) {
+                        Ok(_) => {
+                            info!(
+                                "[WARMUP] Metal warm-up terminé en {}ms — GPU prêt",
+                                warmup_start.elapsed().as_millis()
+                            );
+                        }
+                        Err(e) => {
+                            warn!("[WARMUP] Warm-up échoué (non bloquant): {}", e);
+                        }
+                    }
+                }
+                LoadedEngine::Whisper(_) => {
+                    debug!("[WARMUP] Skipped — transcribe-rs n'a pas besoin de warm-up GPU");
+                }
+            }
+        }
     }
 
     pub fn get_current_model(&self) -> Option<String> {

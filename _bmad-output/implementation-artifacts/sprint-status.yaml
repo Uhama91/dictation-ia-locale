@@ -49,17 +49,17 @@ development_status:
   epic-1-retrospective: done
 
   # Epic 2 : Retour visuel et sonore
-  epic-2: in-progress
+  epic-2: done
   2-1-son-confirmation-activation-arret: done
-  2-2-overlay-visuel-enregistrement-etats: review
+  2-2-overlay-visuel-enregistrement-etats: done
   epic-2-retrospective: optional
 
   # Epic 3 : Modes d'ecriture intelligents
-  epic-3: backlog
-  3-1-selection-mode-ecriture: backlog
-  3-2-mode-chat-correction-minimale: backlog
-  3-3-mode-pro-reformulation-professionnelle: backlog
-  3-4-mode-code-preservation-jargon-technique: backlog
+  epic-3: done
+  3-1-selection-mode-ecriture: done
+  3-2-mode-chat-correction-minimale: done
+  3-3-mode-pro-reformulation-professionnelle: done
+  3-4-mode-code-preservation-jargon-technique: done
   epic-3-retrospective: optional
 
   # Epic 4 : Historique des dictees
