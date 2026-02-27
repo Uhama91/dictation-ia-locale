@@ -63,10 +63,10 @@ development_status:
   epic-3-retrospective: optional
 
   # Epic 4 : Historique des dictees
-  epic-4: backlog
-  4-1-enregistrement-automatique-sessions: backlog
-  4-2-consultation-copie-historique: backlog
-  epic-4-retrospective: optional
+  epic-4: done
+  4-1-enregistrement-automatique-sessions: done
+  4-2-consultation-copie-historique: done
+  epic-4-retrospective: done
 
   # Epic 5 : Onboarding, modeles et vie privee
   epic-5: backlog

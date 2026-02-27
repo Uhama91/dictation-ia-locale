@@ -541,9 +541,19 @@ mod tests {
     }
 
     fn insert_entry(conn: &Connection, timestamp: i64, text: &str, post_processed: Option<&str>) {
+        insert_entry_with_mode(conn, timestamp, text, post_processed, None);
+    }
+
+    fn insert_entry_with_mode(
+        conn: &Connection,
+        timestamp: i64,
+        text: &str,
+        post_processed: Option<&str>,
+        write_mode: Option<&str>,
+    ) {
         conn.execute(
-            "INSERT INTO transcription_history (file_name, timestamp, saved, title, transcription_text, post_processed_text, post_process_prompt)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            "INSERT INTO transcription_history (file_name, timestamp, saved, title, transcription_text, post_processed_text, post_process_prompt, write_mode)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
             params![
                 format!("handy-{}.wav", timestamp),
                 timestamp,
@@ -551,7 +561,8 @@ mod tests {
                 format!("Recording {}", timestamp),
                 text,
                 post_processed,
-                Option::<String>::None
+                Option::<String>::None,
+                write_mode
             ],
         )
         .expect("insert history entry");
@@ -577,5 +588,226 @@ mod tests {
         assert_eq!(entry.timestamp, 200);
         assert_eq!(entry.transcription_text, "second");
         assert_eq!(entry.post_processed_text.as_deref(), Some("processed"));
+    }
+
+    #[test]
+    fn insert_with_write_mode_persists_mode() {
+        let conn = setup_conn();
+        insert_entry_with_mode(&conn, 100, "hello world", None, Some("pro"));
+
+        let entry = HistoryManager::get_latest_entry_with_conn(&conn)
+            .expect("fetch entry")
+            .expect("entry exists");
+
+        assert_eq!(entry.write_mode.as_deref(), Some("pro"));
+    }
+
+    #[test]
+    fn insert_without_write_mode_returns_none() {
+        let conn = setup_conn();
+        insert_entry(&conn, 100, "hello world", None);
+
+        let entry = HistoryManager::get_latest_entry_with_conn(&conn)
+            .expect("fetch entry")
+            .expect("entry exists");
+
+        assert!(entry.write_mode.is_none());
+    }
+
+    #[test]
+    fn get_history_entries_returns_all_fields() {
+        let conn = setup_conn();
+        insert_entry_with_mode(&conn, 100, "raw text", Some("processed text"), Some("chat"));
+        insert_entry_with_mode(&conn, 200, "code input", None, Some("code"));
+
+        let mut stmt = conn.prepare(
+            "SELECT id, file_name, timestamp, saved, title, transcription_text, post_processed_text, post_process_prompt, write_mode
+             FROM transcription_history ORDER BY timestamp DESC"
+        ).expect("prepare stmt");
+
+        let entries: Vec<HistoryEntry> = stmt.query_map([], |row| {
+            Ok(HistoryEntry {
+                id: row.get("id")?,
+                file_name: row.get("file_name")?,
+                timestamp: row.get("timestamp")?,
+                saved: row.get("saved")?,
+                title: row.get("title")?,
+                transcription_text: row.get("transcription_text")?,
+                post_processed_text: row.get("post_processed_text")?,
+                post_process_prompt: row.get("post_process_prompt")?,
+                write_mode: row.get("write_mode")?,
+            })
+        }).expect("query_map")
+          .collect::<Result<Vec<_>, _>>()
+          .expect("collect entries");
+
+        assert_eq!(entries.len(), 2);
+
+        // First entry is newest (timestamp DESC)
+        assert_eq!(entries[0].timestamp, 200);
+        assert_eq!(entries[0].transcription_text, "code input");
+        assert_eq!(entries[0].write_mode.as_deref(), Some("code"));
+        assert!(entries[0].post_processed_text.is_none());
+
+        // Second entry is oldest
+        assert_eq!(entries[1].timestamp, 100);
+        assert_eq!(entries[1].transcription_text, "raw text");
+        assert_eq!(entries[1].post_processed_text.as_deref(), Some("processed text"));
+        assert_eq!(entries[1].write_mode.as_deref(), Some("chat"));
+    }
+
+    #[test]
+    fn get_entry_by_id_returns_write_mode() {
+        let conn = setup_conn();
+        insert_entry_with_mode(&conn, 100, "test text", Some("clean text"), Some("pro"));
+
+        let id: i64 = conn.query_row(
+            "SELECT id FROM transcription_history WHERE timestamp = 100",
+            [],
+            |row| row.get(0),
+        ).expect("get id");
+
+        let mut stmt = conn.prepare(
+            "SELECT id, file_name, timestamp, saved, title, transcription_text, post_processed_text, post_process_prompt, write_mode
+             FROM transcription_history WHERE id = ?1"
+        ).expect("prepare");
+
+        let entry = stmt.query_row([id], |row| {
+            Ok(HistoryEntry {
+                id: row.get("id")?,
+                file_name: row.get("file_name")?,
+                timestamp: row.get("timestamp")?,
+                saved: row.get("saved")?,
+                title: row.get("title")?,
+                transcription_text: row.get("transcription_text")?,
+                post_processed_text: row.get("post_processed_text")?,
+                post_process_prompt: row.get("post_process_prompt")?,
+                write_mode: row.get("write_mode")?,
+            })
+        }).expect("query entry");
+
+        assert_eq!(entry.transcription_text, "test text");
+        assert_eq!(entry.post_processed_text.as_deref(), Some("clean text"));
+        assert_eq!(entry.write_mode.as_deref(), Some("pro"));
+    }
+
+    #[test]
+    fn entries_ordered_by_timestamp_desc() {
+        let conn = setup_conn();
+        insert_entry(&conn, 300, "third", None);
+        insert_entry(&conn, 100, "first", None);
+        insert_entry(&conn, 200, "second", None);
+
+        let mut stmt = conn.prepare(
+            "SELECT id, file_name, timestamp, saved, title, transcription_text, post_processed_text, post_process_prompt, write_mode
+             FROM transcription_history ORDER BY timestamp DESC"
+        ).expect("prepare");
+
+        let entries: Vec<HistoryEntry> = stmt.query_map([], |row| {
+            Ok(HistoryEntry {
+                id: row.get("id")?,
+                file_name: row.get("file_name")?,
+                timestamp: row.get("timestamp")?,
+                saved: row.get("saved")?,
+                title: row.get("title")?,
+                transcription_text: row.get("transcription_text")?,
+                post_processed_text: row.get("post_processed_text")?,
+                post_process_prompt: row.get("post_process_prompt")?,
+                write_mode: row.get("write_mode")?,
+            })
+        }).expect("query_map")
+          .collect::<Result<Vec<_>, _>>()
+          .expect("collect");
+
+        assert_eq!(entries[0].timestamp, 300);
+        assert_eq!(entries[1].timestamp, 200);
+        assert_eq!(entries[2].timestamp, 100);
+    }
+
+    #[test]
+    fn toggle_saved_status() {
+        let conn = setup_conn();
+        insert_entry(&conn, 100, "test", None);
+
+        let id: i64 = conn.query_row(
+            "SELECT id FROM transcription_history LIMIT 1",
+            [],
+            |row| row.get(0),
+        ).expect("get id");
+
+        // Initially not saved
+        let saved: bool = conn.query_row(
+            "SELECT saved FROM transcription_history WHERE id = ?1",
+            params![id],
+            |row| row.get(0),
+        ).expect("get saved");
+        assert!(!saved);
+
+        // Toggle to saved
+        let current_saved: bool = conn.query_row(
+            "SELECT saved FROM transcription_history WHERE id = ?1",
+            params![id],
+            |row| row.get(0),
+        ).expect("get saved");
+        conn.execute(
+            "UPDATE transcription_history SET saved = ?1 WHERE id = ?2",
+            params![!current_saved, id],
+        ).expect("toggle saved");
+
+        let saved_after: bool = conn.query_row(
+            "SELECT saved FROM transcription_history WHERE id = ?1",
+            params![id],
+            |row| row.get(0),
+        ).expect("get saved after toggle");
+        assert!(saved_after);
+
+        // Toggle back
+        conn.execute(
+            "UPDATE transcription_history SET saved = ?1 WHERE id = ?2",
+            params![!saved_after, id],
+        ).expect("toggle saved back");
+
+        let saved_final: bool = conn.query_row(
+            "SELECT saved FROM transcription_history WHERE id = ?1",
+            params![id],
+            |row| row.get(0),
+        ).expect("get saved final");
+        assert!(!saved_final);
+    }
+
+    #[test]
+    fn mixed_write_modes_coexist() {
+        let conn = setup_conn();
+        insert_entry_with_mode(&conn, 100, "casual message", None, Some("chat"));
+        insert_entry_with_mode(&conn, 200, "professional email", Some("Dear Sir..."), Some("pro"));
+        insert_entry_with_mode(&conn, 300, "code comment", None, Some("code"));
+        insert_entry(&conn, 400, "old entry no mode", None); // legacy entry without write_mode
+
+        let mut stmt = conn.prepare(
+            "SELECT id, file_name, timestamp, saved, title, transcription_text, post_processed_text, post_process_prompt, write_mode
+             FROM transcription_history ORDER BY timestamp DESC"
+        ).expect("prepare");
+
+        let entries: Vec<HistoryEntry> = stmt.query_map([], |row| {
+            Ok(HistoryEntry {
+                id: row.get("id")?,
+                file_name: row.get("file_name")?,
+                timestamp: row.get("timestamp")?,
+                saved: row.get("saved")?,
+                title: row.get("title")?,
+                transcription_text: row.get("transcription_text")?,
+                post_processed_text: row.get("post_processed_text")?,
+                post_process_prompt: row.get("post_process_prompt")?,
+                write_mode: row.get("write_mode")?,
+            })
+        }).expect("query")
+          .collect::<Result<Vec<_>, _>>()
+          .expect("collect");
+
+        assert_eq!(entries.len(), 4);
+        assert!(entries[0].write_mode.is_none()); // old entry, no mode
+        assert_eq!(entries[1].write_mode.as_deref(), Some("code"));
+        assert_eq!(entries[2].write_mode.as_deref(), Some("pro"));
+        assert_eq!(entries[3].write_mode.as_deref(), Some("chat"));
     }
 }
