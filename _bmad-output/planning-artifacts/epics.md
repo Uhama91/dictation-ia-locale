@@ -805,3 +805,19 @@ afin de diagnostiquer les problèmes de performance ou de qualité de transcript
 **When** l'utilisateur navigue dans l'interface
 **Then** aucune information technique n'est visible
 **And** le panneau debug est complètement masqué
+
+---
+
+## Backlog futur (non planifié)
+
+### Feature : Dark mode toggle
+
+En tant qu'utilisateur,
+je veux pouvoir basculer entre un mode clair (thème "cahier de classe") et un mode sombre,
+afin d'adapter l'interface à mes préférences visuelles et conditions de luminosité.
+
+**Notes :**
+- Créer une palette dark cohérente avec l'identité "cahier de classe" (ex : fond ardoise, encre craie)
+- Bouton toggle dans les Paramètres + respect de la préférence système par défaut
+- Persister le choix dans les settings utilisateur
+- Priorité : basse (UX confort, pas bloquant)

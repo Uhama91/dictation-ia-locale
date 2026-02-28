@@ -1,27 +1,32 @@
 @import "tailwindcss";
 
 @theme {
-  --color-text: #0f0f0f;
-  --color-background: #fbfbfb;
-  --color-background-ui: #5b21b6;
-  --color-logo-primary: #7c3aed;
-  --color-logo-stroke: #1e1b4b;
-  --color-text-stroke: #f6f6f6;
+  /* Palette "Cahier de classe" */
+  --color-text: #1a1a2e;
+  --color-background: #faf8f3;
+  --color-primary: #2d7a4f;
+  --color-primary-light: #3d9965;
+  --color-secondary: #1a56db;
+  --color-error: #b91c1c;
   --color-mid-gray: #808080;
+
+  /* Legacy aliases (used by existing components) */
+  --color-logo-primary: #2d7a4f;
+  --color-logo-stroke: #1a1a2e;
+  --color-text-stroke: #faf8f3;
+
+  /* Typography */
+  --font-brand: "Caveat", cursive;
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
 }
 
 :root {
   /* Typography */
+  font-family: var(--font-sans);
   font-size: 15px;
   line-height: 24px;
   font-weight: 400;
-
-  /* Colors - Light Theme */
-  /* --color-text: #0f0f0f;
-  --color-background: #fbfbfb;
-  --color-logo-primary: #FAA2CA;
-  --color-logo-stroke: #382731;
-  --color-text-stroke: #f6f6f6; */
 
   /* Typography settings */
   font-synthesis: none;
@@ -42,16 +47,6 @@
   flex-direction: column;
   justify-content: center;
   text-align: center;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    /* Colors - Dark Theme */
-    --color-text: #fbfbfb;
-    --color-background: #1c1b22;
-    --color-logo-primary: #a78bfa;
-    --color-logo-stroke: #ede9fe;
-  }
 }
 
 @layer utilities {
