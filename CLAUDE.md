@@ -1,4 +1,4 @@
-# CLAUDE.md — Dictation IA Locale
+# CLAUDE.md — Dictation IA Locale (DictAI)
 
 Application de dictée vocale **local-first** inspirée de Wispr Flow.
 Pipeline : raccourci clavier → capture audio → Whisper (STT) → LLM (post-traitement) → collage automatique au curseur.
@@ -7,29 +7,34 @@ Pipeline : raccourci clavier → capture audio → Whisper (STT) → LLM (post-t
 
 ## Contexte projet
 
-- **Statut** : Phase 0 — cadrage, zéro code source
+- **Statut** : Implémentation active — Epics 1-5 terminées, Epic 6 en cours
 - **Cible** : macOS (menu bar app)
 - **Philosophie** : Privacy-first, local par défaut, cloud opt-in
 - **Repo** : `https://github.com/Uhama91/dictation-ia-locale`
+- **Fork de** : Handy (branding migré vers DictAI)
 
 ---
 
-## Stack technique (en cours de décision)
+## Stack technique
 
-| Composant | Options | Décision |
-|-----------|---------|----------|
-| Backend | Python / Swift | À valider (Phase 0) |
-| STT | Faster-Whisper / Whisper.cpp | Faster-Whisper préféré |
-| LLM local | Ollama | Validé (+ fallback cloud opt-in) |
-| Stockage | SQLite | Validé |
-| UI | Menu bar macOS | Validé |
+| Composant | Technologie |
+|-----------|-------------|
+| Frontend | React 18 + TypeScript + Tailwind CSS 4 |
+| Backend | Tauri v2 (Rust) |
+| STT | Whisper.cpp (via whisper-rs FFI) |
+| LLM local | Ollama (HTTP, fallback rules-only) |
+| Stockage | SQLite (via tauri-plugin-sql) |
+| UI | Menu bar macOS + fenêtre settings |
+| Tests | Vitest + React Testing Library (53 tests) |
+| i18n | react-i18next (FR/EN) |
+| State | Zustand 5 |
 
 ---
 
 ## Architecture pipeline
 
 ```
-Raccourci clavier → Capture audio (micro) → STT (Whisper) → LLM (nettoyage) → Collage curseur
+Raccourci clavier → VAD → Capture audio (micro) → Whisper (STT) → Rules cleanup → LLM (si nécessaire) → Collage curseur
 ```
 
 ## Modes d'écriture
@@ -40,16 +45,70 @@ Raccourci clavier → Capture audio (micro) → STT (Whisper) → LLM (nettoyage
 
 ---
 
-## Structure source (à créer)
+## Thème visuel — "Cahier de classe" (Epic 6.1)
 
+| Token | Valeur |
+|-------|--------|
+| Fond papier crème | `#faf8f3` |
+| Encre verte (primaire) | `#2d7a4f` |
+| Encre bleue (secondaire) | `#1a56db` |
+| Rouge correction (erreur) | `#b91c1c` |
+| Texte encre sombre | `#1a1a2e` |
+| Police branding | Caveat |
+| Police UI | Inter |
+| Police code | JetBrains Mono |
+
+---
+
+## Commandes utiles
+
+```bash
+# Frontend
+npm run dev          # Dev server React (sans Tauri)
+npm test             # Vitest — 53 tests
+npm run test:watch   # Vitest mode watch
+npm run test:coverage
+
+# Tauri
+npm run tauri dev    # App complète (Rust + React)
+cargo test --lib     # Tests Rust uniquement
 ```
-src/
-├── audio/    # Capture micro
-├── stt/      # Speech-to-text (Whisper)
-├── llm/      # Post-traitement LLM
-├── input/    # Raccourcis clavier globaux
-└── ui/       # Menu bar interface
-```
+
+---
+
+## Tests frontend
+
+- **Framework** : Vitest 4 + React Testing Library + jsdom
+- **Config** : `vitest.config.ts`
+- **Setup global** : `src/test/setup.ts` (14 mocks Tauri + bindings + clipboard + matchMedia)
+- **Helper** : `src/test/helpers.tsx` → `renderWithI18n()` avec i18n isolé
+- **Pattern Tauri events** : `mockListenWithCapture()` + `act()` + `waitFor()`
+- **Pattern Zustand** : `store.setState()` direct dans les tests
+
+---
+
+## Avancement Epics
+
+| Epic | Statut |
+|------|--------|
+| 1 — Dictée vocale fondamentale | Done |
+| 2 — Retour visuel et sonore | Done |
+| 3 — Modes d'écriture intelligents | Done |
+| 4 — Historique des dictées | Done |
+| 5 — Onboarding, modèles et vie privée | Done |
+| 6 — Identité visuelle DictAI | **En cours** (6.1 done, 6.2 done, 6.3 next) |
+| 7 — Paramètres et personnalisation | Backlog |
+| Backlog — Dark mode toggle | Noté dans epics.md |
+
+---
+
+## Story 6.2 — Navigation simplifiée (DONE)
+
+Sidebar refactorée : 7 sections → 3 sections (**Accueil**, **Style**, **Paramètres**).
+- **AccueilSettings** : indicateur état dictée temps réel, raccourci, sélecteur mode, aperçu dernière dictée
+- **StyleSettings** : 3 cartes mode d'écriture avec exemples avant/après
+- **ParametresSettings** : accordéons (Audio, Raccourcis, Modèles, Historique, Avancé, Post-traitement, À propos, Debug)
+- Code review Gemini passée : 4 findings corrigés (memory leak listeners, disabled state, dead code, sémantique button)
 
 ---
 
@@ -59,15 +118,7 @@ src/
 
 - Privilégier `Edit` sur `Write`
 - Sécuriser les credentials (pas de clés en dur)
-- Tests : `pytest tests/`
-
----
-
-## Règles Claude Code
-
-- Phase 0 active : valider les décisions d'archi avant de coder
-- Chaque ADR modifié → mettre à jour `docs/adr/`
-- Chaque session avec modifications → mettre à jour Session Log ci-dessous
+- Cross-LLM review avec Gemini à chaque étape
 
 ---
 
@@ -75,9 +126,8 @@ src/
 
 | Date | Action | Fichiers |
 |------|--------|----------|
-| 2026-02-24 | Initialisation CLAUDE.md + installation BMAD Method | CLAUDE.md, .bmad-core/ |
-| 2026-02-24 | BMAD Quick Spec Steps 1-4 terminés — tech-spec ready-for-dev. Revue 3 sources intégrée. | tech-spec-dictation-ia-locale-mvp.md, docs/technical-review-final.md |
-| 2026-02-24 | Tasks 1-5, 9-12 impl. cargo check propre (0 erreurs). Pipeline FR connecté. | src-tauri/ (Cargo.toml, build.rs, whisper_ffi.rs, transcription.rs, actions.rs, pipeline/) |
-| 2026-02-24 | Tasks 10/17/18/19. LLM Ollama HTTP, benchmarks latence (p99<415µs), WriteModeSelector UI. | cleanup.rs, rules.rs, tests/benchmark.rs, settings.rs, WriteModeSelector.tsx |
-| 2026-02-24 | Tasks 6/13/14/20-22. Swift plugins (ANE, MenuBar, AccessibilityPaste) + pipeline FR fin-tuning 35/35 tests. | WhisperANE.swift, MenuBar.swift, AccessibilityPaste.swift, rules.rs, orchestrator.rs |
-| 2026-02-24 | Tasks 7/8/15/16. VAD benchmark (p99=170µs), shortcuts FR, audio macOS-only + notebook Colab QLoRA. | vad_benchmark.rs, vad/mod.rs, settings.rs, audio.rs, docs/ml/finetune_qwen25_colab.ipynb |
+| 2026-02-24 | Initialisation + BMAD Quick Spec + Tasks 1-22 implémentées | src-tauri/, src/ |
+| 2026-02-27 | Epic 5 complète + retro + sprint stabilisation tests (53 tests) | test/setup.ts, 7 fichiers .test.tsx |
+| 2026-02-28 | Story 6.1 : thème cahier de classe, polices, suppression legacy Handy | App.css, tailwind.config.js, DictationLogo.tsx, main.tsx |
+| 2026-02-28 | Story 6.2 : exploration terminée, plan de navigation 3 sections prêt | Plan dans .claude/plans/ |
+| 2026-03-01 | Story 6.2 : implémentation + code review Gemini (4 fixes) | Sidebar.tsx, AccueilSettings, StyleSettings, ParametresSettings |

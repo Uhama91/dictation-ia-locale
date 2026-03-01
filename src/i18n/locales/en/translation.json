@@ -14,7 +14,11 @@
     "postProcessing": "Post Process",
     "history": "History",
     "debug": "Debug",
-    "about": "About"
+    "about": "About",
+    "accueil": "Home",
+    "accueilLastDictation": "Last Dictation",
+    "style": "Style",
+    "parametres": "Settings"
   },
   "onboarding": {
     "subtitle": "To get started, choose a transcription model",
@@ -234,6 +238,24 @@
         "allLanguages": "All Languages"
       },
       "noModelsMatch": "No models match this filter."
+    },
+    "style": {
+      "before": "Before",
+      "after": "After",
+      "examples": {
+        "chat": {
+          "before": "uh hey could you like send me the file please",
+          "after": "Hey, could you send me the file please?"
+        },
+        "pro": {
+          "before": "so basically we should probably meet next week to talk about the project",
+          "after": "I suggest we meet next week to discuss the project."
+        },
+        "code": {
+          "before": "create an async function that fetches the API slash users and returns the JSON",
+          "after": "Create an async function that fetches the API /users and returns the JSON."
+        }
+      }
     },
     "sound": {
       "title": "Sound",

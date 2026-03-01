@@ -1,6 +1,9 @@
-// Settings section components
-export { GeneralSettings } from "./general/GeneralSettings";
-export { AdvancedSettings } from "./advanced/AdvancedSettings";
+// Navigation sections (Story 6.2)
+export { AccueilSettings } from "./accueil/AccueilSettings";
+export { StyleSettings } from "./style/StyleSettings";
+export { ParametresSettings } from "./parametres/ParametresSettings";
+
+// Sub-section components (used internally by ParametresSettings)
 export { DebugSettings } from "./debug/DebugSettings";
 export { HistorySettings } from "./history/HistorySettings";
 export { AboutSettings } from "./about/AboutSettings";
