@@ -11,6 +11,7 @@
 
 mod handler;
 pub mod handy_keys;
+pub mod single_key;
 mod tauri_impl;
 
 use log::{error, info, warn};
@@ -52,6 +53,11 @@ pub fn init_shortcuts(app: &AppHandle) {
             }
         }
     }
+
+    // Toujours démarrer le listener single-key (Story 7.1)
+    // Il fonctionne en parallèle du système existant et gère la touche Option/Commande seule.
+    let trigger_key = user_settings.trigger_key.clone();
+    single_key::start_single_key_listener(app.clone(), trigger_key);
 }
 
 /// Register the cancel shortcut (called when recording starts)
@@ -1076,6 +1082,38 @@ pub fn change_show_tray_icon_setting(app: AppHandle, enabled: bool) -> Result<()
 
     // Apply change immediately
     tray::set_tray_visibility(&app, enabled);
+
+    Ok(())
+}
+
+/// Change la touche de déclenchement single-key ("option" | "command").
+/// Prise d'effet immédiate — le listener single_key lit la valeur partagée au prochain cycle.
+#[tauri::command]
+#[specta::specta]
+pub fn change_trigger_key_setting(app: AppHandle, key: String) -> Result<(), String> {
+    let key = match key.as_str() {
+        "option" | "command" => key,
+        other => {
+            warn!("change_trigger_key: valeur invalide '{}', défaut: option", other);
+            "option".to_string()
+        }
+    };
+
+    // Persist in settings
+    let mut settings_data = settings::get_settings(&app);
+    settings_data.trigger_key = key.clone();
+    settings::write_settings(&app, settings_data);
+
+    // Notify frontend (homogénéité avec les autres commandes de settings)
+    let _ = app.emit(
+        "settings-changed",
+        serde_json::json!({ "setting": "trigger_key", "value": &key }),
+    );
+
+    // Update the live listener
+    if let Some(state) = app.try_state::<single_key::SingleKeyState>() {
+        state.update_trigger_key(key);
+    }
 
     Ok(())
 }

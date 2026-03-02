@@ -96,7 +96,7 @@ cargo test --lib     # Tests Rust uniquement
 | 3 — Modes d'écriture intelligents | Done |
 | 4 — Historique des dictées | Done |
 | 5 — Onboarding, modèles et vie privée | Done |
-| 6 — Identité visuelle DictAI | **En cours** (6.1 done, 6.2 done, 6.3 next) |
+| 6 — Identité visuelle DictAI | **En cours** (6.1 done, 6.2 done, 6.3 done) |
 | 7 — Paramètres et personnalisation | Backlog |
 | Backlog — Dark mode toggle | Noté dans epics.md |
 
@@ -131,3 +131,5 @@ Sidebar refactorée : 7 sections → 3 sections (**Accueil**, **Style**, **Param
 | 2026-02-28 | Story 6.1 : thème cahier de classe, polices, suppression legacy Handy | App.css, tailwind.config.js, DictationLogo.tsx, main.tsx |
 | 2026-02-28 | Story 6.2 : exploration terminée, plan de navigation 3 sections prêt | Plan dans .claude/plans/ |
 | 2026-03-01 | Story 6.2 : implémentation + code review Gemini (4 fixes) | Sidebar.tsx, AccueilSettings, StyleSettings, ParametresSettings |
+| 2026-03-02 | Story 6.3 : page À propos — identité DictAI, licence MIT, crédits enrichis, UpdateChecker | AboutSettings.tsx, translation.json (FR/EN) |
+| 2026-03-02 | Story 7.1 : raccourci single-key (Option/⌘) — PTT 200ms + double-tap mains libres | single_key.rs, mod.rs, settings.rs, TriggerKeySelector.tsx, bindings.ts |

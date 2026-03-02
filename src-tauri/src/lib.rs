@@ -302,6 +302,7 @@ pub fn run(cli_args: CliArgs) {
         shortcut::change_show_tray_icon_setting,
         shortcut::handy_keys::start_handy_keys_recording,
         shortcut::handy_keys::stop_handy_keys_recording,
+        shortcut::change_trigger_key_setting,
         trigger_update_check,
         commands::cancel_operation,
         commands::get_app_dir_path,

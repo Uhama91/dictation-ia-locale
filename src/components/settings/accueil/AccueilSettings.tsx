@@ -3,8 +3,8 @@ import { useTranslation } from "react-i18next";
 import { Mic, MicOff } from "lucide-react";
 import { listen } from "@tauri-apps/api/event";
 import { WriteModeSelector } from "../WriteModeSelector";
-import { ShortcutInput } from "../ShortcutInput";
 import { SettingsGroup } from "../../ui/SettingsGroup";
+import { useSettings } from "../../../hooks/useSettings";
 import { commands, type HistoryEntry } from "@/bindings";
 import { formatRelativeTime } from "@/utils/dateFormat";
 import { WRITE_MODE_CONFIG, type WriteMode } from "@/config/writeModes";
@@ -150,6 +150,30 @@ const DictationStateIndicator: React.FC = () => {
   );
 };
 
+const TriggerKeyBadge: React.FC = () => {
+  const { t } = useTranslation();
+  const { getSetting } = useSettings();
+  const triggerKey = (getSetting("trigger_key") as string) ?? "option";
+  const label =
+    triggerKey === "option"
+      ? t("settings.triggerKey.option")
+      : t("settings.triggerKey.command");
+
+  return (
+    <div className="px-4 py-3 flex items-center gap-3">
+      <div className="flex-1">
+        <p className="text-sm font-medium text-text">{t("settings.triggerKey.title")}</p>
+        <p className="text-xs text-text/50 mt-0.5">
+          {t("settings.triggerKey.holdMode")} · {t("settings.triggerKey.doubleTapMode")}
+        </p>
+      </div>
+      <span className="px-2 py-1 rounded bg-logo-primary/10 text-logo-primary text-sm font-mono font-medium">
+        {label}
+      </span>
+    </div>
+  );
+};
+
 export const AccueilSettings: React.FC = () => {
   const { t } = useTranslation();
 
@@ -158,7 +182,7 @@ export const AccueilSettings: React.FC = () => {
       <DictationStateIndicator />
 
       <SettingsGroup title={t("settings.general.title")}>
-        <ShortcutInput shortcutId="transcribe" grouped={true} />
+        <TriggerKeyBadge />
         <WriteModeSelector descriptionMode="tooltip" grouped={true} />
       </SettingsGroup>
 

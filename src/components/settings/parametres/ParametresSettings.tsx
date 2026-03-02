@@ -7,7 +7,7 @@ import { AudioFeedback } from "../AudioFeedback";
 import { VolumeSlider } from "../VolumeSlider";
 import { MuteWhileRecording } from "../MuteWhileRecording";
 import { PushToTalk } from "../PushToTalk";
-import { ShortcutInput } from "../ShortcutInput";
+import { TriggerKeySelector } from "../TriggerKeySelector";
 import { ModelSettingsCard } from "../general/ModelSettingsCard";
 import { ModelsSettings } from "../models/ModelsSettings";
 import { ShowOverlay } from "../ShowOverlay";
@@ -125,8 +125,7 @@ export const ParametresSettings: React.FC = () => {
         onToggle={() => toggleSection("shortcuts")}
       >
         <div className="space-y-1">
-          <ShortcutInput shortcutId="transcribe" grouped={true} />
-          <ShortcutInput shortcutId="cancel" grouped={true} />
+          <TriggerKeySelector descriptionMode="tooltip" grouped={true} />
         </div>
       </AccordionSection>
 

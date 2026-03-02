@@ -161,6 +161,14 @@
       "title": "{{model}} Settings",
       "noSettingsNeeded": "This model works automatically with no configuration needed."
     },
+    "triggerKey": {
+      "title": "Dictation Key",
+      "description": "Hold to dictate, double-tap for hands-free mode",
+      "option": "Option (⌥)",
+      "command": "Command (⌘)",
+      "holdMode": "Hold → dictate with release",
+      "doubleTapMode": "Double-tap → hands-free"
+    },
     "general": {
       "title": "General",
       "shortcut": {

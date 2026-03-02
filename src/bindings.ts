@@ -348,6 +348,18 @@ async changeShowTrayIconSetting(enabled: boolean) : Promise<Result<null, string>
 }
 },
 /**
+ * Change la touche de déclenchement single-key ("option" | "command").
+ * Prise d'effet immédiate — le listener single_key lit la valeur partagée au prochain cycle.
+ */
+async changeTriggerKeySetting(key: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_trigger_key_setting", { key }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * Start key recording mode
  */
 async startHandyKeysRecording(bindingId: string) : Promise<Result<null, string>> {
@@ -765,7 +777,11 @@ export type AppSettings = { bindings: Partial<{ [key in string]: ShortcutBinding
 /**
  * Mode d'écriture pipeline FR : "chat" | "pro" | "code" (défaut: "chat")
  */
-write_mode?: string }
+write_mode?: string;
+/**
+ * Touche de déclenchement single-key : "option" | "command" (défaut: "option")
+ */
+trigger_key?: string }
 export type AudioDevice = { index: string; name: string; is_default: boolean }
 export type AutoSubmitKey = "enter" | "ctrl_enter" | "cmd_enter"
 export type BindingResponse = { success: boolean; binding: ShortcutBinding | null; error: string | null }

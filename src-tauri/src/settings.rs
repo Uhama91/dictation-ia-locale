@@ -365,6 +365,9 @@ pub struct AppSettings {
     /// Mode d'écriture pipeline FR : "chat" | "pro" | "code" (défaut: "chat")
     #[serde(default = "default_write_mode")]
     pub write_mode: String,
+    /// Touche de déclenchement single-key : "option" | "command" (défaut: "option")
+    #[serde(default = "default_trigger_key")]
+    pub trigger_key: String,
 }
 
 fn default_model() -> String {
@@ -397,6 +400,10 @@ fn default_selected_language() -> String {
 
 fn default_write_mode() -> String {
     "chat".to_string()
+}
+
+fn default_trigger_key() -> String {
+    "option".to_string()
 }
 
 fn default_overlay_position() -> OverlayPosition {
@@ -733,6 +740,7 @@ pub fn get_default_settings() -> AppSettings {
         typing_tool: default_typing_tool(),
         external_script_path: None,
         write_mode: default_write_mode(),
+        trigger_key: default_trigger_key(),
     }
 }
 

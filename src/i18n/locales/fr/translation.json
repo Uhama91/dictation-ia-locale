@@ -179,6 +179,14 @@
       "yourModels": "Modèles téléchargés",
       "availableModels": "Disponibles au téléchargement"
     },
+    "triggerKey": {
+      "title": "Touche de dictée",
+      "description": "Maintenez pour dicter, double-tapez pour le mode mains libres",
+      "option": "Option (⌥)",
+      "command": "Commande (⌘)",
+      "holdMode": "Maintien → dictée avec relâchement",
+      "doubleTapMode": "Double-tap → mains libres"
+    },
     "general": {
       "title": "Général",
       "shortcut": {
