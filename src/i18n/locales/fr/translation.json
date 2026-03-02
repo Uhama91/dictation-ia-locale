@@ -528,9 +528,14 @@
     },
     "about": {
       "title": "À propos",
+      "tagline": "Dictée vocale locale et privée",
       "version": {
         "title": "Version",
         "description": "Version actuelle de DictAI"
+      },
+      "license": {
+        "title": "Licence",
+        "description": "Licence MIT — logiciel libre"
       },
       "appDataDirectory": {
         "title": "Emplacement des données de l'application",
@@ -541,17 +546,24 @@
         "description": "Voir le code source et contribuer",
         "button": "Voir sur GitHub"
       },
-      "supportDevelopment": {
-        "title": "Soutenir le développement",
-        "description": "Aidez-nous à continuer à construire DictAI",
-        "button": "Faire un don"
+      "updates": {
+        "title": "Mises à jour",
+        "description": "Vérifier les mises à jour disponibles"
       },
       "acknowledgments": {
         "title": "Remerciements",
+        "handy": {
+          "title": "Handy",
+          "description": "DictAI est un fork du projet open source Handy par CJ Pais"
+        },
         "whisper": {
           "title": "Whisper.cpp",
           "description": "Inférence haute performance du modèle de reconnaissance vocale automatique Whisper d'OpenAI",
           "details": "DictAI utilise Whisper.cpp pour un traitement rapide et local de la parole en texte. Merci au travail incroyable de Georgi Gerganov et des contributeurs."
+        },
+        "ollama": {
+          "title": "Ollama",
+          "description": "Exécution locale de modèles de langage pour le post-traitement intelligent"
         }
       }
     }

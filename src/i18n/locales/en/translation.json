@@ -528,9 +528,14 @@
     },
     "about": {
       "title": "About",
+      "tagline": "Local and private voice dictation",
       "version": {
         "title": "Version",
         "description": "Current version of DictAI"
+      },
+      "license": {
+        "title": "License",
+        "description": "MIT License — open source software"
       },
       "appDataDirectory": {
         "title": "App Data Directory",
@@ -541,17 +546,24 @@
         "description": "View source code and contribute",
         "button": "View on GitHub"
       },
-      "supportDevelopment": {
-        "title": "Support Development",
-        "description": "Help us continue building DictAI",
-        "button": "Donate"
+      "updates": {
+        "title": "Updates",
+        "description": "Check for available updates"
       },
       "acknowledgments": {
         "title": "Acknowledgments",
+        "handy": {
+          "title": "Handy",
+          "description": "DictAI is a fork of the open source project Handy by CJ Pais"
+        },
         "whisper": {
           "title": "Whisper.cpp",
           "description": "High-performance inference of OpenAI's Whisper automatic speech recognition model",
           "details": "DictAI uses Whisper.cpp for fast, local speech-to-text processing. Thanks to the amazing work by Georgi Gerganov and contributors."
+        },
+        "ollama": {
+          "title": "Ollama",
+          "description": "Local language model execution for intelligent post-processing"
         }
       }
     }

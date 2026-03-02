@@ -8,6 +8,7 @@ import { Button } from "../../ui/Button";
 import { AppDataDirectory } from "../AppDataDirectory";
 import { AppLanguageSelector } from "../AppLanguageSelector";
 import { LogDirectory } from "../debug";
+import UpdateChecker from "../../update-checker";
 
 export const AboutSettings: React.FC = () => {
   const { t } = useTranslation();
@@ -20,23 +21,26 @@ export const AboutSettings: React.FC = () => {
         setVersion(appVersion);
       } catch (error) {
         console.error("Failed to get app version:", error);
-        setVersion("0.1.2");
+        setVersion("0.1.0");
       }
     };
 
     fetchVersion();
   }, []);
 
-  const handleDonateClick = async () => {
-    try {
-      await openUrl("https://handy.computer/donate");
-    } catch (error) {
-      console.error("Failed to open donate link:", error);
-    }
-  };
-
   return (
     <div className="max-w-3xl w-full mx-auto space-y-6">
+      {/* Header identité DictAI */}
+      <div className="text-center py-4">
+        {/* eslint-disable-next-line i18next/no-literal-string */}
+        <h1 className="text-3xl font-brand text-ink-green">DictAI</h1>
+        {/* eslint-disable-next-line i18next/no-literal-string */}
+        <span className="text-sm font-mono text-mid-gray">v{version}</span>
+        <p className="text-sm text-mid-gray mt-1">
+          {t("settings.about.tagline")}
+        </p>
+      </div>
+
       <SettingsGroup title={t("settings.about.title")}>
         <AppLanguageSelector descriptionMode="tooltip" grouped={true} />
         <SettingContainer
@@ -49,12 +53,21 @@ export const AboutSettings: React.FC = () => {
         </SettingContainer>
 
         <SettingContainer
-          title={t("settings.about.supportDevelopment.title")}
-          description={t("settings.about.supportDevelopment.description")}
+          title={t("settings.about.license.title")}
+          description={t("settings.about.license.description")}
           grouped={true}
         >
-          <Button variant="primary" size="md" onClick={handleDonateClick}>
-            {t("settings.about.supportDevelopment.button")}
+          <Button
+            variant="secondary"
+            size="md"
+            onClick={() =>
+              openUrl(
+                "https://github.com/Uhama91/dictation-ia-locale/blob/main/LICENSE",
+              )
+            }
+          >
+            {/* eslint-disable-next-line i18next/no-literal-string */}
+            MIT
           </Button>
         </SettingContainer>
 
@@ -66,10 +79,20 @@ export const AboutSettings: React.FC = () => {
           <Button
             variant="secondary"
             size="md"
-            onClick={() => openUrl("https://github.com/cjpais/Handy")}
+            onClick={() =>
+              openUrl("https://github.com/Uhama91/dictation-ia-locale")
+            }
           >
             {t("settings.about.sourceCode.button")}
           </Button>
+        </SettingContainer>
+
+        <SettingContainer
+          title={t("settings.about.updates.title")}
+          description={t("settings.about.updates.description")}
+          grouped={true}
+        >
+          <UpdateChecker />
         </SettingContainer>
 
         <AppDataDirectory descriptionMode="tooltip" grouped={true} />
@@ -78,8 +101,18 @@ export const AboutSettings: React.FC = () => {
 
       <SettingsGroup title={t("settings.about.acknowledgments.title")}>
         <SettingContainer
+          title={t("settings.about.acknowledgments.handy.title")}
+          description={t(
+            "settings.about.acknowledgments.handy.description",
+          )}
+          grouped={true}
+          layout="stacked"
+        />
+        <SettingContainer
           title={t("settings.about.acknowledgments.whisper.title")}
-          description={t("settings.about.acknowledgments.whisper.description")}
+          description={t(
+            "settings.about.acknowledgments.whisper.description",
+          )}
           grouped={true}
           layout="stacked"
         >
@@ -87,6 +120,14 @@ export const AboutSettings: React.FC = () => {
             {t("settings.about.acknowledgments.whisper.details")}
           </div>
         </SettingContainer>
+        <SettingContainer
+          title={t("settings.about.acknowledgments.ollama.title")}
+          description={t(
+            "settings.about.acknowledgments.ollama.description",
+          )}
+          grouped={true}
+          layout="stacked"
+        />
       </SettingsGroup>
     </div>
   );
