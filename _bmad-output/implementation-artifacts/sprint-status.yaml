@@ -93,7 +93,7 @@ development_status:
 
   # Epic 8 : Structuration intelligente du texte transcrit
   epic-8: in-progress
-  8-1-structuration-intelligente-texte-transcrit: review
+  8-1-structuration-intelligente-texte-transcrit: done
   # Story file : _bmad-output/implementation-artifacts/8-1-structuration-intelligente-texte-transcrit.md
   # Quick Spec + Dev Story validés (review Gemini intégrée 2026-03-02)
   #
