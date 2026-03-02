@@ -7,7 +7,7 @@ Pipeline : raccourci clavier → capture audio → Whisper (STT) → LLM (post-t
 
 ## Contexte projet
 
-- **Statut** : Implémentation active — Epics 1-5 terminées, Epic 6 en cours
+- **Statut** : Implémentation terminée — Epics 1-7 done, backlog dark mode
 - **Cible** : macOS (menu bar app)
 - **Philosophie** : Privacy-first, local par défaut, cloud opt-in
 - **Repo** : `https://github.com/Uhama91/dictation-ia-locale`
@@ -96,8 +96,8 @@ cargo test --lib     # Tests Rust uniquement
 | 3 — Modes d'écriture intelligents | Done |
 | 4 — Historique des dictées | Done |
 | 5 — Onboarding, modèles et vie privée | Done |
-| 6 — Identité visuelle DictAI | **En cours** (6.1 done, 6.2 done, 6.3 done) |
-| 7 — Paramètres et personnalisation | Backlog |
+| 6 — Identité visuelle DictAI | Done |
+| 7 — Paramètres et personnalisation | Done |
 | Backlog — Dark mode toggle | Noté dans epics.md |
 
 ---
@@ -133,3 +133,4 @@ Sidebar refactorée : 7 sections → 3 sections (**Accueil**, **Style**, **Param
 | 2026-03-01 | Story 6.2 : implémentation + code review Gemini (4 fixes) | Sidebar.tsx, AccueilSettings, StyleSettings, ParametresSettings |
 | 2026-03-02 | Story 6.3 : page À propos — identité DictAI, licence MIT, crédits enrichis, UpdateChecker | AboutSettings.tsx, translation.json (FR/EN) |
 | 2026-03-02 | Story 7.1 : raccourci single-key (Option/⌘) — PTT 200ms + double-tap mains libres | single_key.rs, mod.rs, settings.rs, TriggerKeySelector.tsx, bindings.ts |
+| 2026-03-02 | Epic 7 done — 7.2/7.3/7.4 déjà couverts par héritage Handy. Toutes epics terminées. | sprint-status.yaml, CLAUDE.md |

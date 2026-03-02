@@ -77,16 +77,16 @@ development_status:
   epic-5-retrospective: done
 
   # Epic 6 : Identite visuelle DictAI
-  epic-6: backlog
-  6-1-theme-cahier-classe-design-tokens: backlog
-  6-2-navigation-simplifiee-3-sections: backlog
-  6-3-page-a-propos: backlog
+  epic-6: done
+  6-1-theme-cahier-classe-design-tokens: done
+  6-2-navigation-simplifiee-3-sections: done
+  6-3-page-a-propos: done
   epic-6-retrospective: optional
 
   # Epic 7 : Parametres et personnalisation
-  epic-7: backlog
-  7-1-configuration-raccourci-clavier: backlog
-  7-2-selection-microphone-preferences-audio: backlog
-  7-3-acces-menu-bar-autostart: backlog
-  7-4-mode-debug-metriques-diagnostic: backlog
+  epic-7: done
+  7-1-configuration-raccourci-clavier: done
+  7-2-selection-microphone-preferences-audio: done  # hérité de Handy (MicrophoneSelector, OutputDeviceSelector, etc.)
+  7-3-acces-menu-bar-autostart: done  # hérité de Handy (ShowTrayIcon, AutostartToggle, StartHidden)
+  7-4-mode-debug-metriques-diagnostic: done  # hérité de Handy (DebugSettings conditionnel)
   epic-7-retrospective: optional
