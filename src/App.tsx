@@ -96,8 +96,13 @@ function App() {
     };
   }, [settings?.debug_mode, updateSetting]);
 
-  // Listen for LLM fallback events (Ollama unavailable mid-session)
+  // Listen for LLM fallback events — only notify if post-processing is enabled,
+  // otherwise the user doesn't care that Ollama is unavailable.
+  const postProcessEnabled = useSettingsStore(
+    (state) => state.settings?.post_process_enabled ?? false,
+  );
   useEffect(() => {
+    if (!postProcessEnabled) return;
     let unlisten: (() => void) | undefined;
     listen("llm-fallback", () => {
       toast.info(t("ollama.fallbackToast"), { duration: 3000 });
@@ -105,7 +110,7 @@ function App() {
       unlisten = fn;
     });
     return () => unlisten?.();
-  }, [t]);
+  }, [t, postProcessEnabled]);
 
   const checkOnboardingStatus = async () => {
     try {

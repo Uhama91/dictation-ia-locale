@@ -179,8 +179,6 @@ export const AccueilSettings: React.FC = () => {
 
   return (
     <div className="max-w-3xl w-full mx-auto space-y-6">
-      <DictationStateIndicator />
-
       <SettingsGroup title={t("settings.general.title")}>
         <TriggerKeyBadge />
         <WriteModeSelector descriptionMode="tooltip" grouped={true} />
