@@ -4,12 +4,14 @@
 /// Task 20 : Filler words FR étendus
 /// Task 21 : Normalisation élisions (apostrophe-espace Whisper)
 /// Task 22 : Suppression ponctuation doublée (.., ??, !!, ...)
+/// Story 8.1 : Détection structure (listes, paragraphes) + fallback formatter
 ///
 /// Les regex sont compilées une seule fois via once_cell::sync::Lazy.
 /// Note : la crate `regex` ne supporte pas les backreférences — la
 /// déduplication de ponctuation est gérée par des regex indépendantes.
 use once_cell::sync::Lazy;
 use regex::Regex;
+use serde::{Deserialize, Serialize};
 
 /// Filler words francophone courants à supprimer.
 /// Liste étendue (Task 20) avec des expressions multi-mots sans ambiguïté.
@@ -164,6 +166,264 @@ pub fn apply(text: &str) -> String {
     }
 
     result
+}
+
+// ============================================================================
+// Story 8.1 — Détection de structure du texte transcrit
+// ============================================================================
+
+/// Indice de structure détecté dans le texte post-règles.
+/// Utilisé pour adapter le prompt LLM et le nombre de tokens de sortie.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum StructureHint {
+    /// Message court (< 20 mots, pas de marqueur) — rendu inline
+    SingleMessage,
+    /// Paragraphe unique (20–60 mots, 1 sujet)
+    Paragraph,
+    /// Multi-paragraphes (> 60 mots + marqueur de pivot)
+    MultiParagraph,
+    /// Liste à tirets (marqueurs énumératifs FR détectés)
+    List,
+}
+
+impl Default for StructureHint {
+    fn default() -> Self {
+        StructureHint::SingleMessage
+    }
+}
+
+// ── Marqueurs de liste ────────────────────────────────────────────────────
+
+/// Tier 1 : marqueurs ordinaux — signal fort (2 suffisent)
+static LIST_TIER1_RE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
+        r"(?i)\b(premièrement|deuxièmement|troisièmement|quatrièmement|cinquièmement|d'une part|d'autre part|en premier lieu|en deuxième lieu|en troisième lieu)\b"
+    ).unwrap()
+});
+
+/// Tier 2 : marqueurs séquentiels — signal moyen (2 suffisent)
+static LIST_TIER2_RE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
+        r"(?i)\b(d'abord|ensuite|puis|enfin|en dernier lieu|finalement|pour commencer|pour finir|pour terminer|dans un premier temps|dans un deuxième temps|dans un troisième temps)\b"
+    ).unwrap()
+});
+
+/// Tier 3 : marqueurs additifs — signal faible (3+ pour déclencher)
+static LIST_TIER3_RE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
+        r"(?i)\b(également|de plus|en outre|par ailleurs|et aussi|sans oublier|et puis)\b"
+    ).unwrap()
+});
+
+// ── Marqueurs de pivot (changement de paragraphe) ──────────────────────
+
+static PIVOT_RE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
+        r"(?i)\b(par contre|cependant|néanmoins|toutefois|sur un autre sujet|pour ce qui est de|passons à|autre chose|autre point important|à propos de|s'agissant de)\b"
+    ).unwrap()
+});
+
+/// Vérifie si un pivot est précédé d'une ponctuation forte (`.` ou `,`).
+/// Réduit les faux positifs sur les usages conversationnels courants.
+static PIVOT_WITH_PUNCT_RE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
+        r"(?i)[.,]\s*(par contre|cependant|néanmoins|toutefois|sur un autre sujet|pour ce qui est de|passons à|autre chose|autre point important|à propos de|s'agissant de)\b"
+    ).unwrap()
+});
+
+// ── Détection question ────────────────────────────────────────────────────
+
+/// Détecte une question pure et courte (sans marqueurs de liste).
+/// Les questions suivies de marqueurs de liste sont traitées normalement.
+fn is_pure_question(text: &str, word_count: usize) -> bool {
+    if word_count > 15 {
+        return false;
+    }
+    let trimmed = text.trim();
+    if trimmed.ends_with('?') {
+        return true;
+    }
+    let lower = trimmed.to_lowercase();
+    lower.starts_with("est-ce que ")
+        || lower.starts_with("est-ce qu'")
+        || lower.starts_with("comment ")
+        || lower.starts_with("pourquoi ")
+        || lower.starts_with("quand ")
+        || lower.starts_with("où ")
+        || lower.starts_with("qu'est-ce ")
+        || lower.starts_with("combien ")
+        || lower.starts_with("quel ")
+        || lower.starts_with("quelle ")
+        || lower.starts_with("quels ")
+        || lower.starts_with("quelles ")
+}
+
+/// Compte les occurrences d'une regex dans le texte.
+fn count_matches(text: &str, re: &Regex) -> usize {
+    re.find_iter(text).count()
+}
+
+/// Détecte la structure probable du texte post-règles.
+///
+/// Exécuté en < 1ms (regex compilées, aucun LLM).
+///
+/// # Logique de décision
+///
+/// 1. Si marqueurs de liste détectés → `List`
+/// 2. Si > 60 mots + marqueur de pivot (avec ponctuation forte OU > 60 mots seul) → `MultiParagraph`
+/// 3. Si < 20 mots, pas de marqueur → `SingleMessage`
+/// 4. Sinon → `Paragraph`
+pub fn detect_structure(text: &str) -> StructureHint {
+    let word_count = text.split_whitespace().count();
+
+    // Comptage marqueurs de liste
+    let tier1 = count_matches(text, &LIST_TIER1_RE);
+    let tier2 = count_matches(text, &LIST_TIER2_RE);
+    let tier3 = count_matches(text, &LIST_TIER3_RE);
+
+    // Détection liste : prioritaire sur tout le reste
+    let is_list = tier1 >= 2
+        || tier2 >= 2
+        || (tier1 >= 1 && tier2 >= 1)
+        || (tier2 >= 1 && tier3 >= 1)
+        || tier3 >= 3;
+
+    if is_list {
+        // Exception : question pure courte sans marqueurs de liste forts
+        // "Comment tu vas ?" → pas une liste, même si un marqueur faible traîne
+        // Mais "Quelles sont les étapes ? D'abord X, ensuite Y" → liste
+        if is_pure_question(text, word_count) && tier1 == 0 && tier2 == 0 {
+            return StructureHint::SingleMessage;
+        }
+        return StructureHint::List;
+    }
+
+    // Détection multi-paragraphes : > 60 mots + pivot
+    if word_count > 60 {
+        let pivot_count = count_matches(text, &PIVOT_RE);
+        let pivot_with_punct = count_matches(text, &PIVOT_WITH_PUNCT_RE);
+        if pivot_with_punct >= 1 || pivot_count >= 2 {
+            return StructureHint::MultiParagraph;
+        }
+    }
+
+    // Message court : < 20 mots, pas de marqueur spécial
+    if word_count < 20 {
+        // Vérifier si c'est une pure question (déjà < 20 mots)
+        if is_pure_question(text, word_count) {
+            return StructureHint::SingleMessage;
+        }
+        return StructureHint::SingleMessage;
+    }
+
+    StructureHint::Paragraph
+}
+
+/// Fallback de structuration quand le LLM est indisponible.
+///
+/// Insère `\n- ` devant les marqueurs Tier 1/2 détectés sans retirer les mots de liaison.
+/// Produit une liste lisible même sans LLM.
+///
+/// Exemple : "d'abord le lait ensuite du pain enfin des œufs"
+///         → "- D'abord le lait\n- Ensuite du pain\n- Enfin des œufs"
+pub fn apply_structure_fallback(text: &str, hint: StructureHint) -> String {
+    match hint {
+        StructureHint::List => format_list_fallback(text),
+        StructureHint::MultiParagraph => format_multi_paragraph_fallback(text),
+        _ => text.to_string(),
+    }
+}
+
+/// Formate une liste en insérant `\n- ` devant chaque marqueur Tier 1/2.
+fn format_list_fallback(text: &str) -> String {
+    // Regex combinée Tier 1 + Tier 2 pour remplacement
+    static LIST_COMBINED_RE: Lazy<Regex> = Lazy::new(|| {
+        Regex::new(
+            r"(?i)\b(premièrement|deuxièmement|troisièmement|quatrièmement|cinquièmement|d'une part|d'autre part|en premier lieu|en deuxième lieu|en troisième lieu|d'abord|ensuite|puis|enfin|en dernier lieu|finalement|pour commencer|pour finir|pour terminer|dans un premier temps|dans un deuxième temps|dans un troisième temps)\b"
+        ).unwrap()
+    });
+
+    // Trouver les positions de tous les marqueurs
+    let matches: Vec<_> = LIST_COMBINED_RE.find_iter(text).collect();
+    if matches.is_empty() {
+        return text.to_string();
+    }
+
+    let mut result = String::with_capacity(text.len() + matches.len() * 4);
+    let mut last_end = 0;
+
+    for (i, m) in matches.iter().enumerate() {
+        // Texte avant ce marqueur (trim les espaces/virgules/points)
+        let before = text[last_end..m.start()].trim_matches(|c: char| c.is_whitespace() || c == ',' || c == '.');
+        if i == 0 && !before.is_empty() {
+            // Texte avant le premier marqueur → intro inline
+            result.push_str(before);
+            result.push('\n');
+        } else if i > 0 && !before.is_empty() {
+            // Ce "before" appartient à l'item précédent — déjà inclus via la logique ci-dessous
+        }
+
+        // Le marqueur + tout le texte jusqu'au prochain marqueur
+        let item_end = matches.get(i + 1).map_or(text.len(), |next| {
+            // Remonter avant les espaces/virgules qui précèdent le prochain marqueur
+            let prefix = &text[m.end()..next.start()];
+            m.end() + prefix.trim_end_matches(|c: char| c.is_whitespace() || c == ',' || c == '.').len()
+        });
+
+        let item_text = text[m.start()..item_end].trim();
+        if !item_text.is_empty() {
+            result.push_str("- ");
+            // Capitaliser la première lettre de l'item
+            let mut chars = item_text.chars();
+            if let Some(first) = chars.next() {
+                result.extend(first.to_uppercase());
+                result.push_str(chars.as_str());
+            }
+            if i < matches.len() - 1 {
+                result.push('\n');
+            }
+        }
+
+        last_end = item_end;
+    }
+
+    // Texte après le dernier marqueur (inclus dans le dernier item)
+    let trailing = text[last_end..].trim();
+    if !trailing.is_empty() && !result.is_empty() {
+        // Ajouter au dernier item
+        result.push(' ');
+        result.push_str(trailing);
+    }
+
+    // Nettoyage : retirer le point final redondant si le dernier item en a déjà un
+    let result = result.trim().to_string();
+    result
+}
+
+/// Formate un texte multi-paragraphes en insérant `\n\n` devant les marqueurs de pivot.
+fn format_multi_paragraph_fallback(text: &str) -> String {
+    // Insérer \n\n avant chaque marqueur de pivot précédé de ponctuation
+    let result = PIVOT_WITH_PUNCT_RE.replace_all(text, |caps: &regex::Captures| {
+        // Garder le point/virgule, ajouter \n\n, puis le marqueur
+        let full = &caps[0];
+        let punct_char = full.chars().next().unwrap();
+        let marker = &caps[1];
+        format!("{}\n\n{}", punct_char, capitalize_first(marker))
+    });
+
+    result.to_string()
+}
+
+/// Capitalise la première lettre d'une chaîne.
+fn capitalize_first(s: &str) -> String {
+    let mut chars = s.chars();
+    match chars.next() {
+        None => String::new(),
+        Some(c) => {
+            let upper: String = c.to_uppercase().collect();
+            upper + chars.as_str()
+        }
+    }
 }
 
 #[cfg(test)]
@@ -455,5 +715,130 @@ mod tests {
         let result = apply("Super!C'est génial");
         assert!(result.contains("! C") || result.contains("! c"),
             "espace attendu après le !: {:?}", result);
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // Story 8.1 — Tests detect_structure
+    // ══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_short_message_is_single() {
+        assert_eq!(detect_structure("Bonjour tout le monde."), StructureHint::SingleMessage);
+    }
+
+    #[test]
+    fn test_medium_text_is_paragraph() {
+        let text = "Je voulais vous dire que le rapport est prêt et que j'ai vérifié tous les chiffres, \
+                    tout me semble correct et on peut envoyer ça au client dès demain matin.";
+        assert_eq!(detect_structure(text), StructureHint::Paragraph);
+    }
+
+    #[test]
+    fn test_list_tier1_ordinals() {
+        let text = "Premièrement on doit vérifier les comptes. Deuxièmement on contacte le fournisseur.";
+        assert_eq!(detect_structure(text), StructureHint::List);
+    }
+
+    #[test]
+    fn test_list_tier2_sequential() {
+        let text = "D'abord on fait les courses, ensuite on prépare le repas, enfin on mange.";
+        assert_eq!(detect_structure(text), StructureHint::List);
+    }
+
+    #[test]
+    fn test_list_tier2_two_markers() {
+        let text = "D'abord préparer le terrain, ensuite construire.";
+        assert_eq!(detect_structure(text), StructureHint::List);
+    }
+
+    #[test]
+    fn test_list_tier1_and_tier2_mixed() {
+        let text = "En premier lieu on identifie le problème, ensuite on propose des solutions.";
+        assert_eq!(detect_structure(text), StructureHint::List);
+    }
+
+    #[test]
+    fn test_list_tier3_needs_three() {
+        // Seulement 2 marqueurs Tier 3 → pas suffisant
+        let text = "Il faut aussi nettoyer la cuisine et aussi ranger le salon.";
+        assert_ne!(detect_structure(text), StructureHint::List);
+
+        // 3 marqueurs Tier 3 → liste
+        let text = "Il faut également nettoyer, de plus ranger le salon, et par ailleurs faire les courses.";
+        assert_eq!(detect_structure(text), StructureHint::List);
+    }
+
+    #[test]
+    fn test_pure_question_not_restructured() {
+        assert_eq!(detect_structure("Comment tu vas ?"), StructureHint::SingleMessage);
+        assert_eq!(detect_structure("Est-ce que tout va bien ?"), StructureHint::SingleMessage);
+        assert_eq!(detect_structure("Pourquoi tu dis ça ?"), StructureHint::SingleMessage);
+    }
+
+    #[test]
+    fn test_question_with_list_markers_is_list() {
+        // Question suivie de marqueurs de liste → la liste prime
+        let text = "Quelles sont les étapes ? D'abord la phase 1, ensuite la phase 2, enfin la livraison.";
+        assert_eq!(detect_structure(text), StructureHint::List);
+    }
+
+    #[test]
+    fn test_multi_paragraph_with_pivot() {
+        // > 60 mots + pivot avec ponctuation forte (". Par contre")
+        let text = "Le projet avance bien et toutes les fonctionnalités principales sont implémentées correctement. \
+                    L'équipe de développement a fait un excellent travail sur le frontend React et le backend Rust. \
+                    Les tests unitaires et d'intégration couvrent plus de quatre-vingts pourcent du code source \
+                    et les performances mesurées sont tout à fait satisfaisantes pour le moment. \
+                    Par contre, il reste quelques bugs mineurs à corriger avant la mise en production finale.";
+        assert_eq!(detect_structure(text), StructureHint::MultiParagraph);
+    }
+
+    #[test]
+    fn test_pivot_word_alone_without_length_is_paragraph() {
+        // < 60 mots, un pivot → pas de multi-paragraphe, juste Paragraph
+        let text = "Le projet avance bien. Par contre il reste des bugs à corriger avant la livraison prochaine.";
+        assert_ne!(detect_structure(text), StructureHint::MultiParagraph);
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // Story 8.1 — Tests apply_structure_fallback
+    // ══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_fallback_list_tier2() {
+        let text = "D'abord le lait, ensuite du pain, enfin des œufs.";
+        let result = apply_structure_fallback(text, StructureHint::List);
+        assert!(result.contains("- D'abord"), "Should start with '- D'abord', got: {}", result);
+        assert!(result.contains("\n- Ensuite"), "Should contain '\\n- Ensuite', got: {}", result);
+        assert!(result.contains("\n- Enfin"), "Should contain '\\n- Enfin', got: {}", result);
+    }
+
+    #[test]
+    fn test_fallback_list_tier1() {
+        let text = "Premièrement vérifier les comptes, deuxièmement contacter le fournisseur.";
+        let result = apply_structure_fallback(text, StructureHint::List);
+        assert!(result.contains("- Premièrement"), "got: {}", result);
+        assert!(result.contains("- Deuxièmement"), "got: {}", result);
+    }
+
+    #[test]
+    fn test_fallback_single_message_unchanged() {
+        let text = "Bonjour tout le monde.";
+        assert_eq!(apply_structure_fallback(text, StructureHint::SingleMessage), text);
+    }
+
+    #[test]
+    fn test_fallback_paragraph_unchanged() {
+        let text = "Un texte de taille moyenne sans marqueurs spéciaux.";
+        assert_eq!(apply_structure_fallback(text, StructureHint::Paragraph), text);
+    }
+
+    #[test]
+    fn test_fallback_multi_paragraph_inserts_newlines() {
+        let long_text = "Le projet avance bien et toutes les fonctionnalités principales sont implémentées. \
+                         L'équipe a fait un excellent travail sur le frontend et le backend. Les tests couvrent \
+                         plus de quatre-vingts pourcent du code. Par contre, il reste quelques bugs à corriger.";
+        let result = apply_structure_fallback(long_text, StructureHint::MultiParagraph);
+        assert!(result.contains("\n\n"), "Should contain paragraph break, got: {}", result);
     }
 }

@@ -1,11 +1,17 @@
-/// Modes d'écriture et prompts LLM associés (ADR-009, Task 11)
+/// Modes d'écriture et prompts LLM associés (ADR-009, Task 11, Story 8.1)
 ///
 /// 3 modes définis (ADR de la spec fonctionnelle) :
-/// - Chat : correction minimale, ton conservé
-/// - Pro  : reformulation concise, style email/document
-/// - Code : jargon technique préservé, symboles intacts
+/// - Chat : correction minimale, ton conservé, structuration si marqueurs
+/// - Pro  : reformulation concise, style email/document, structuration agressive
+/// - Code : jargon technique préservé, symboles intacts, structuration basique
+///
+/// Story 8.1 : les prompts intègrent la structuration (listes, paragraphes)
+/// via un `StructureHint` passé en paramètre. Le ton diffère par mode,
+/// la structure est universelle.
 
 use serde::{Deserialize, Serialize};
+
+use crate::pipeline::rules::StructureHint;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
@@ -19,34 +25,66 @@ pub enum WriteMode {
 impl WriteMode {
     /// Retourne le prompt système à injecter dans le LLM de nettoyage.
     ///
-    /// Le prompt est conçu pour être minimal (< 50 tokens) et directif.
-    /// Retourne uniquement le texte nettoyé, jamais d'explication.
-    pub fn system_prompt(&self) -> &'static str {
-        match self {
+    /// Le prompt intègre la structuration (Story 8.1) : le `StructureHint`
+    /// ajoute des instructions de format au prompt de base du mode.
+    /// Chaque prompt ≤ 60 tokens, avec micro-exemple few-shot pour les listes
+    /// (recommandation Gemini : qwen2.5:0.5b réagit mieux aux exemples).
+    pub fn system_prompt(&self, hint: StructureHint) -> String {
+        let base = match self {
             WriteMode::Chat => {
-                "Tu es un correcteur de transcription vocale. \
-                Corrige uniquement l'orthographe évidente et ajoute la ponctuation de base. \
-                Conserve exactement le ton et la structure originale. \
-                Ne reformule pas. Réponds uniquement avec le texte corrigé."
+                "Tu es un correcteur de transcription vocale française. \
+                Corrige l'orthographe et la ponctuation. Conserve le ton oral."
             }
             WriteMode::Pro => {
                 "Tu es un rédacteur professionnel. \
-                Reformule ce texte transcrit de manière concise et professionnelle, \
-                adapté pour un email ou document. Paragraphes clairs, ton poli mais direct. \
-                Réponds uniquement avec le texte reformulé."
+                Reformule en français formel, concis, adapté pour un email."
             }
             WriteMode::Code => {
                 "Tu es un assistant technique. \
-                Corrige la ponctuation de ce texte transcrit. \
-                Préserve TOUS les termes techniques anglais, identifiants, symboles et noms de variables. \
-                Ne traduis jamais le jargon technique. \
-                Réponds uniquement avec le texte corrigé."
+                Corrige la ponctuation. Préserve TOUS les termes techniques anglais et symboles. \
+                Ne traduis jamais le jargon."
             }
-        }
+        };
+
+        let structure_instruction = match hint {
+            StructureHint::List => match self {
+                WriteMode::Chat => {
+                    " Exemple: \"d'abord le lait ensuite du pain enfin des oeufs\" → \
+                    \"- D'abord le lait\\n- Ensuite du pain\\n- Enfin des oeufs\"\
+                    \nFormate les énumérations en liste à tirets (-)."
+                }
+                WriteMode::Pro => {
+                    " Exemple: \"d'abord le lait ensuite du pain enfin des oeufs\" → \
+                    \"- Lait\\n- Pain\\n- Oeufs\"\
+                    \nListes à tirets, capitalisées."
+                }
+                WriteMode::Code => {
+                    " Si énumération explicite, formate en liste à tirets (-)."
+                }
+            },
+            StructureHint::MultiParagraph => {
+                " Si le texte change de sujet, crée des paragraphes séparés."
+            }
+            StructureHint::Paragraph | StructureHint::SingleMessage => "",
+        };
+
+        let suffix = " Réponds uniquement avec le texte corrigé.";
+
+        format!("{}{}{}", base, structure_instruction, suffix)
     }
 
     /// Indique si ce mode justifie toujours le passage par le LLM
-    /// (même avec un score de confiance élevé)
+    /// (même avec un score de confiance élevé).
+    ///
+    /// Story 8.1 : `StructureHint` non-trivial force le LLM dans tous les modes.
+    pub fn needs_llm(&self, hint: StructureHint) -> bool {
+        match hint {
+            StructureHint::List | StructureHint::MultiParagraph => true,
+            _ => matches!(self, WriteMode::Pro),
+        }
+    }
+
+    /// Ancien API conservée pour compatibilité (TODO: supprimer après migration complète)
     pub fn always_use_llm(&self) -> bool {
         matches!(self, WriteMode::Pro)
     }
@@ -91,12 +129,49 @@ mod tests {
     #[test]
     fn test_system_prompts_not_empty() {
         for mode in [WriteMode::Chat, WriteMode::Pro, WriteMode::Code] {
-            assert!(!mode.system_prompt().is_empty());
+            for hint in [StructureHint::SingleMessage, StructureHint::Paragraph, StructureHint::List, StructureHint::MultiParagraph] {
+                assert!(!mode.system_prompt(hint).is_empty());
+            }
         }
     }
 
     #[test]
-    fn test_pro_always_uses_llm() {
+    fn test_pro_always_needs_llm() {
+        assert!(WriteMode::Pro.needs_llm(StructureHint::SingleMessage));
+        assert!(WriteMode::Pro.needs_llm(StructureHint::Paragraph));
+        assert!(WriteMode::Pro.needs_llm(StructureHint::List));
+    }
+
+    #[test]
+    fn test_chat_needs_llm_only_for_structure() {
+        assert!(!WriteMode::Chat.needs_llm(StructureHint::SingleMessage));
+        assert!(!WriteMode::Chat.needs_llm(StructureHint::Paragraph));
+        assert!(WriteMode::Chat.needs_llm(StructureHint::List));
+        assert!(WriteMode::Chat.needs_llm(StructureHint::MultiParagraph));
+    }
+
+    #[test]
+    fn test_code_needs_llm_only_for_structure() {
+        assert!(!WriteMode::Code.needs_llm(StructureHint::SingleMessage));
+        assert!(WriteMode::Code.needs_llm(StructureHint::List));
+    }
+
+    #[test]
+    fn test_list_prompt_contains_example() {
+        let prompt = WriteMode::Chat.system_prompt(StructureHint::List);
+        assert!(prompt.contains("tirets"), "Chat+List prompt should mention tirets: {}", prompt);
+        assert!(prompt.contains("Exemple"), "Chat+List prompt should contain few-shot example: {}", prompt);
+    }
+
+    #[test]
+    fn test_single_message_prompt_no_structure_instruction() {
+        let prompt = WriteMode::Chat.system_prompt(StructureHint::SingleMessage);
+        assert!(!prompt.contains("tirets"), "SingleMessage prompt should not mention lists: {}", prompt);
+        assert!(!prompt.contains("Exemple"), "SingleMessage prompt should not contain example: {}", prompt);
+    }
+
+    #[test]
+    fn test_backward_compat_always_use_llm() {
         assert!(WriteMode::Pro.always_use_llm());
         assert!(!WriteMode::Chat.always_use_llm());
         assert!(!WriteMode::Code.always_use_llm());

@@ -90,3 +90,16 @@ development_status:
   7-3-acces-menu-bar-autostart: done  # hérité de Handy (ShowTrayIcon, AutostartToggle, StartHidden)
   7-4-mode-debug-metriques-diagnostic: done  # hérité de Handy (DebugSettings conditionnel)
   epic-7-retrospective: optional
+
+  # Epic 8 : Structuration intelligente du texte transcrit
+  epic-8: in-progress
+  8-1-structuration-intelligente-texte-transcrit: review
+  # Story file : _bmad-output/implementation-artifacts/8-1-structuration-intelligente-texte-transcrit.md
+  # Quick Spec + Dev Story validés (review Gemini intégrée 2026-03-02)
+  #
+  # Tasks :
+  #   Task 1 — StructureHint + detect_structure() + fallback  [rules.rs]         : done
+  #   Task 2 — Prompts few-shot restructurés                  [modes.rs]          : done
+  #   Task 3 — Routage avec StructureHint                     [orchestrator.rs]   : done
+  #   Task 4 — Tokens adaptatifs + num_predict                [cleanup.rs]        : done
+  epic-8-retrospective: optional

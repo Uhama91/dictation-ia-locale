@@ -1,15 +1,15 @@
 /// Orchestrateur du pipeline hybride STT → Règles → [LLM conditionnel]
 ///
 /// Task 12 : Routing conditionnel basé sur le score de confiance Whisper
+/// Story 8.1 : StructureHint intégré au routage et au LLM
 ///
 /// Seuils de routing (configurables) :
-/// - confidence >= 0.82 ET words <= 30 ET mode != Pro → règles seules (< 5ms)
+/// - confidence >= 0.82 ET words <= 30 ET mode != Pro ET structure == SingleMessage → règles seules
+/// - List ou MultiParagraph → LLM obligatoire (ou fallback Layer 3)
 /// - Sinon → règles + LLM Qwen2.5-0.5B Q4 (~200-300ms)
-///
-/// Résultat attendu : 60-65% des cas sans LLM
 
 use crate::pipeline::modes::WriteMode;
-use crate::pipeline::rules;
+use crate::pipeline::rules::{self, StructureHint};
 
 /// Seuil de confiance au-dessus duquel on évite le LLM (mode Chat/Code)
 const CONFIDENCE_THRESHOLD: f32 = 0.82;
@@ -25,6 +25,8 @@ pub struct PipelineResult {
     /// true = le LLM était requis mais a échoué (fallback sur règles)
     pub llm_fallback: bool,
     pub duration_ms: u64,
+    /// Structure détectée (Story 8.1)
+    pub structure_hint: StructureHint,
 }
 
 /// Décision de routing
@@ -34,14 +36,14 @@ pub enum RoutingDecision {
     RulesAndLlm,
 }
 
-/// Détermine si on peut éviter le LLM
-pub fn route(confidence: f32, word_count: usize, mode: WriteMode) -> RoutingDecision {
-    // Le mode Pro reformule toujours → LLM obligatoire
-    if mode.always_use_llm() {
+/// Détermine si on peut éviter le LLM (Story 8.1 : StructureHint override)
+pub fn route(confidence: f32, word_count: usize, mode: WriteMode, hint: StructureHint) -> RoutingDecision {
+    // Story 8.1 : structure non-triviale force le LLM (listes, multi-paragraphes)
+    if mode.needs_llm(hint) {
         return RoutingDecision::RulesAndLlm;
     }
 
-    // Fast path : confiance élevée + texte court
+    // Fast path : confiance élevée + texte court + pas de structure spéciale
     if confidence >= CONFIDENCE_THRESHOLD && word_count <= MAX_WORDS_FAST_PATH {
         RoutingDecision::RulesOnly
     } else {
@@ -51,46 +53,50 @@ pub fn route(confidence: f32, word_count: usize, mode: WriteMode) -> RoutingDeci
 
 /// Exécute le pipeline de post-traitement.
 ///
-/// `llm_cleanup_fn` est un callback optionnel vers le LLM (None = LLM non encore disponible).
-/// Quand None, on applique seulement les règles quel que soit le routing.
-///
-/// TODO Task 10 : brancher `crate::llm::cleanup::run` ici
+/// `llm_cleanup_fn` est un callback optionnel vers le LLM.
+/// Signature Story 8.1 : prend `(text, mode, hint)` pour adapter prompt + tokens.
 pub fn process(
     raw_text: &str,
     confidence: f32,
     mode: WriteMode,
-    llm_cleanup_fn: Option<&dyn Fn(&str, WriteMode) -> anyhow::Result<String>>,
+    llm_cleanup_fn: Option<&dyn Fn(&str, WriteMode, StructureHint) -> anyhow::Result<String>>,
 ) -> PipelineResult {
     let start = std::time::Instant::now();
 
     // Étape 1 : règles locales (toujours)
     let rules_result = rules::apply(raw_text);
 
+    // Étape 1.5 (Story 8.1) : détection structure
+    let hint = rules::detect_structure(&rules_result);
+
     let word_count = rules_result.split_whitespace().count();
-    let decision = route(confidence, word_count, mode);
+    let decision = route(confidence, word_count, mode, hint);
 
     log::info!(
-        "[Routing] confiance={:.2} mots={} mode={:?} → {}",
-        confidence, word_count, mode,
+        "[Routing] confiance={:.2} mots={} mode={:?} structure={:?} → {}",
+        confidence, word_count, mode, hint,
         if decision == RoutingDecision::RulesOnly { "fast-path (règles)" } else { "LLM" }
     );
 
     // Étape 2 : LLM conditionnel
     let (final_text, rules_only, llm_fallback) = match (decision, llm_cleanup_fn) {
         (RoutingDecision::RulesAndLlm, Some(cleanup_fn)) => {
-            match cleanup_fn(&rules_result, mode) {
+            match cleanup_fn(&rules_result, mode, hint) {
                 Ok(llm_result) => (llm_result, false, false),
                 Err(e) => {
                     log::warn!("LLM cleanup failed, falling back to rules: {}", e);
-                    (rules_result, true, true)
+                    // Story 8.1 : fallback structure si LLM KO
+                    let fallback = rules::apply_structure_fallback(&rules_result, hint);
+                    (fallback, true, true)
                 }
             }
         }
         (RoutingDecision::RulesAndLlm, None) => {
-            // LLM requis mais pas disponible
-            (rules_result, true, true)
+            // LLM requis mais pas disponible — appliquer le fallback structure
+            let fallback = rules::apply_structure_fallback(&rules_result, hint);
+            (fallback, true, true)
         }
-        // Fast-path : règles seules (pas de fallback)
+        // Fast-path : règles seules (pas de fallback nécessaire)
         _ => (rules_result, true, false),
     };
 
@@ -99,6 +105,7 @@ pub fn process(
         rules_only,
         llm_fallback,
         duration_ms: start.elapsed().as_millis() as u64,
+        structure_hint: hint,
     }
 }
 
@@ -108,9 +115,9 @@ mod tests {
 
     #[test]
     fn test_routing_fast_path() {
-        // Confiance élevée + texte court + mode Chat → fast path
+        // Confiance élevée + texte court + mode Chat + SingleMessage → fast path
         assert_eq!(
-            route(0.90, 10, WriteMode::Chat),
+            route(0.90, 10, WriteMode::Chat, StructureHint::SingleMessage),
             RoutingDecision::RulesOnly
         );
     }
@@ -119,7 +126,7 @@ mod tests {
     fn test_routing_low_confidence() {
         // Confiance faible → LLM
         assert_eq!(
-            route(0.70, 10, WriteMode::Chat),
+            route(0.70, 10, WriteMode::Chat, StructureHint::SingleMessage),
             RoutingDecision::RulesAndLlm
         );
     }
@@ -128,7 +135,7 @@ mod tests {
     fn test_routing_long_text() {
         // Texte long → LLM même avec confiance élevée
         assert_eq!(
-            route(0.90, 50, WriteMode::Chat),
+            route(0.90, 50, WriteMode::Chat, StructureHint::Paragraph),
             RoutingDecision::RulesAndLlm
         );
     }
@@ -137,7 +144,24 @@ mod tests {
     fn test_routing_pro_mode_always_llm() {
         // Pro mode → LLM toujours
         assert_eq!(
-            route(0.99, 5, WriteMode::Pro),
+            route(0.99, 5, WriteMode::Pro, StructureHint::SingleMessage),
+            RoutingDecision::RulesAndLlm
+        );
+    }
+
+    #[test]
+    fn test_routing_list_forces_llm() {
+        // Story 8.1 : List hint force le LLM même en Chat avec confiance élevée
+        assert_eq!(
+            route(0.99, 10, WriteMode::Chat, StructureHint::List),
+            RoutingDecision::RulesAndLlm
+        );
+    }
+
+    #[test]
+    fn test_routing_multi_paragraph_forces_llm() {
+        assert_eq!(
+            route(0.99, 10, WriteMode::Code, StructureHint::MultiParagraph),
             RoutingDecision::RulesAndLlm
         );
     }
@@ -154,10 +178,34 @@ mod tests {
     #[test]
     fn test_process_with_llm_fallback() {
         // LLM qui échoue → fallback sur les règles
-        let failing_llm = |_text: &str, _mode: WriteMode| -> anyhow::Result<String> {
+        let failing_llm = |_text: &str, _mode: WriteMode, _hint: StructureHint| -> anyhow::Result<String> {
             Err(anyhow::anyhow!("LLM not available"))
         };
         let result = process("euh test", 0.60, WriteMode::Chat, Some(&failing_llm));
         assert!(result.rules_only); // fallback sur règles
+    }
+
+    #[test]
+    fn test_process_list_without_llm_gets_fallback() {
+        // Story 8.1 : liste sans LLM → fallback structure appliqué
+        let result = process(
+            "d'abord préparer le terrain ensuite construire la maison enfin emménager",
+            0.90,
+            WriteMode::Chat,
+            None,
+        );
+        assert!(result.llm_fallback);
+        assert!(result.text.contains("- "), "Fallback should produce list items: {}", result.text);
+    }
+
+    #[test]
+    fn test_process_structure_hint_set() {
+        let result = process(
+            "d'abord une chose ensuite une autre enfin la dernière",
+            0.90,
+            WriteMode::Chat,
+            None,
+        );
+        assert_eq!(result.structure_hint, StructureHint::List);
     }
 }
