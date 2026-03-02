@@ -26,6 +26,7 @@ use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::transcription_coordinator::TranscriptionCoordinator;
+use crate::utils::cancel_current_operation;
 
 /// Délai d'intention PTT : si Option est maintenu plus longtemps, on démarre l'enregistrement
 const INTENT_DELAY_MS: u64 = 200;
@@ -46,6 +47,7 @@ const TRIGGER_KEY_COMMAND: u8 = 1;
 enum RawKeyEvent {
     TriggerKeyDown,
     TriggerKeyUp,
+    EscapeKey,
     OtherKeyDown,
 }
 
@@ -191,6 +193,8 @@ pub fn start_single_key_listener(app: AppHandle, trigger_key: String) {
                 EventType::KeyPress(key) => {
                     if is_trigger_key(&key, trigger) {
                         let _ = tx.send(RawKeyEvent::TriggerKeyDown);
+                    } else if matches!(key, Key::Escape) {
+                        let _ = tx.send(RawKeyEvent::EscapeKey);
                     } else {
                         let _ = tx.send(RawKeyEvent::OtherKeyDown);
                     }
@@ -266,7 +270,7 @@ pub fn start_single_key_listener(app: AppHandle, trigger_key: String) {
 
                 // ── Pending ─────────────────────────────────────────────────
                 SmState::Pending { t0 } => match event {
-                    Some(RawKeyEvent::OtherKeyDown) => {
+                    Some(RawKeyEvent::OtherKeyDown) | Some(RawKeyEvent::EscapeKey) => {
                         debug!("single_key: Pending → Idle (autre touche, annulation silencieuse)");
                         SmState::Idle
                     }
@@ -317,6 +321,11 @@ pub fn start_single_key_listener(app: AppHandle, trigger_key: String) {
                         send_stop_ptt(&app_clone);
                         SmState::Idle
                     }
+                    Some(RawKeyEvent::EscapeKey) => {
+                        debug!("single_key: RecordingPtt → Idle (Échap → annulation)");
+                        cancel_current_operation(&app_clone);
+                        SmState::Idle
+                    }
                     _ => SmState::RecordingPtt,
                 },
 
@@ -325,6 +334,11 @@ pub fn start_single_key_listener(app: AppHandle, trigger_key: String) {
                     Some(RawKeyEvent::TriggerKeyDown) => {
                         debug!("single_key: HandsFree → Idle (tap → stop)");
                         send_toggle_handsfree(&app_clone);
+                        SmState::Idle
+                    }
+                    Some(RawKeyEvent::EscapeKey) => {
+                        debug!("single_key: HandsFree → Idle (Échap → annulation)");
+                        cancel_current_operation(&app_clone);
                         SmState::Idle
                     }
                     _ => SmState::HandsFree,
