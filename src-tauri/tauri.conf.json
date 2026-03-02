@@ -14,7 +14,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Dictation IA",
+        "title": "DictAI",
         "width": 680,
         "height": 570,
         "minWidth": 680,

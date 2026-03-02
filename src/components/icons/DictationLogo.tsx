@@ -40,17 +40,12 @@ export default function DictationLogo({ width = 120, className = "" }: Dictation
       </svg>
 
       {/* Branding — police Caveat */}
-      <div className="flex flex-col items-center leading-tight">
-        <span
-          className="font-brand text-xl font-bold tracking-wide"
-          style={{ color: "var(--color-primary)" }}
-        >
-          DictAI
-        </span>
-        <span className="text-[10px] font-medium opacity-50">
-          Dictation IA Locale
-        </span>
-      </div>
+      <span
+        className="font-brand text-xl font-bold tracking-wide leading-tight"
+        style={{ color: "var(--color-primary)" }}
+      >
+        DictAI
+      </span>
     </div>
   );
 }

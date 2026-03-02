@@ -242,6 +242,9 @@ impl ShortcutAction for TranscribeAction {
         tm.initiate_model_load();
 
         let binding_id = binding_id.to_string();
+        // Mémoriser l'app cible AVANT l'overlay pour garantir le bon destinataire
+        // du Cmd+V (notamment Chrome/IDX où Tauri peut devenir frontmost).
+        crate::accessibility::save_target_app();
         change_tray_icon(app, TrayIconState::Recording);
         show_recording_overlay(app);
 

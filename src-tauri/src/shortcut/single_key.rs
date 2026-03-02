@@ -23,7 +23,7 @@ use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 
 use crate::transcription_coordinator::TranscriptionCoordinator;
 
@@ -128,12 +128,39 @@ fn send_toggle_handsfree(app: &AppHandle) {
 // Démarrage du listener
 // ============================================================================
 
+/// Vérifie la permission Accessibilité macOS via AXIsProcessTrusted().
+/// Nécessaire pour que CGEventTap (utilisé par rdev) puisse capturer les touches globales.
+#[cfg(target_os = "macos")]
+fn check_accessibility_permission(app: &AppHandle) {
+    #[link(name = "ApplicationServices", kind = "framework")]
+    extern "C" {
+        fn AXIsProcessTrusted() -> bool;
+    }
+
+    let trusted = unsafe { AXIsProcessTrusted() };
+    if !trusted {
+        warn!(
+            "single_key: Permission Accessibilité macOS MANQUANTE — rdev ne pourra pas \
+            capturer les touches globales. Aller dans : Réglages Système > \
+            Confidentialité et sécurité > Accessibilité → ajouter le binaire \
+            (src-tauri/target/debug/dictation-ia)."
+        );
+        let _ = app.emit("accessibility-permission-missing", ());
+    } else {
+        info!("single_key: Permission Accessibilité macOS OK ✓");
+    }
+}
+
 /// Lance le listener single-key. Appelé depuis `shortcut::init_shortcuts`.
 ///
 /// Spawne deux threads :
 /// 1. Thread rdev — callback ultra-léger : lit `AtomicU8` (lock-free), envoie via mpsc
 /// 2. Thread state machine — gère les timers, transitions d'états et appels au coordinator
 pub fn start_single_key_listener(app: AppHandle, trigger_key: String) {
+    // Vérification préliminaire de la permission Accessibilité macOS
+    // rdev utilise CGEventTap qui nécessite cette permission pour les événements globaux.
+    #[cfg(target_os = "macos")]
+    check_accessibility_permission(&app);
     let initial_val = match trigger_key.as_str() {
         "command" => TRIGGER_KEY_COMMAND,
         _ => TRIGGER_KEY_OPTION,
@@ -157,6 +184,7 @@ pub fn start_single_key_listener(app: AppHandle, trigger_key: String) {
     // ------------------------------------------------------------------
     thread::spawn(move || {
         info!("single_key: thread rdev démarré");
+        info!("single_key: démarrage rdev::listen...");
         if let Err(e) = listen(move |event: Event| {
             let trigger = trigger_for_rdev.load(Ordering::Relaxed);
             match event.event_type {
@@ -175,7 +203,11 @@ pub fn start_single_key_listener(app: AppHandle, trigger_key: String) {
                 _ => {}
             }
         }) {
-            error!("single_key: rdev::listen erreur : {:?}", e);
+            error!(
+                "single_key: rdev::listen ECHEC ({:?}). Cause probable : \
+                permission Accessibilité macOS non accordée au binaire.",
+                e
+            );
         }
     });
 

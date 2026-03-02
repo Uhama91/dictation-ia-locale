@@ -51,6 +51,19 @@ pub fn check_permission() -> bool {
     unsafe { func() }
 }
 
+/// Mémorise l'application frontmost actuelle comme cible du prochain collage.
+/// Appeler juste avant d'afficher l'overlay d'enregistrement, pendant que
+/// l'app cible (ex: Chrome, IDX) a encore le focus.
+#[cfg(target_os = "macos")]
+pub fn save_target_app() {
+    let sym = unsafe { libc::dlsym(libc::RTLD_DEFAULT, b"accessibility_save_target_app\0".as_ptr() as *const _) };
+    if sym.is_null() {
+        return;
+    }
+    let func: unsafe extern "C" fn() = unsafe { std::mem::transmute(sym) };
+    unsafe { func() }
+}
+
 /// Demande les permissions Accessibility (affiche la dialog systeme macOS).
 #[cfg(target_os = "macos")]
 pub fn request_permission() {
@@ -66,6 +79,9 @@ pub fn request_permission() {
 pub fn paste_via_accessibility(_text: &str) -> Result<i32, String> {
     Err("Accessibility paste is only available on macOS".into())
 }
+
+#[cfg(not(target_os = "macos"))]
+pub fn save_target_app() {}
 
 #[cfg(not(target_os = "macos"))]
 pub fn check_permission() -> bool {

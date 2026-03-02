@@ -17,6 +17,20 @@ import Foundation
 import ApplicationServices
 import AppKit
 
+// MARK: - Target App Tracking
+
+/// App cible mémorisée avant l'affichage de l'overlay DictAI.
+/// Permet de réactiver la bonne app au moment du collage, même si
+/// `run_on_main_thread` (Tauri) a momentanément rendu DictAI frontmost.
+private var savedTargetApp: NSRunningApplication? = nil
+
+/// Sauvegarde l'application frontmost actuelle comme cible du prochain collage.
+/// Doit être appelé juste avant d'afficher l'overlay d'enregistrement.
+@_cdecl("accessibility_save_target_app")
+public func accessibilitySaveTargetApp() {
+    savedTargetApp = NSWorkspace.shared.frontmostApplication
+}
+
 // MARK: - Public FFI API
 
 /// Colle le texte à la position du curseur dans l'application active.
@@ -97,6 +111,11 @@ private func tryAXPaste(text: String) -> Bool {
         return false
     }
 
+    // Lire la longueur du contenu avant insertion (pour vérification)
+    var beforeRef: CFTypeRef?
+    AXUIElementCopyAttributeValue(focused, kAXValueAttribute as CFString, &beforeRef)
+    let beforeLen = (beforeRef as? String)?.count ?? -1
+
     // Insérer le texte (remplace la sélection, ou insère au curseur si vide)
     let setResult = AXUIElementSetAttributeValue(
         focused,
@@ -104,7 +123,22 @@ private func tryAXPaste(text: String) -> Bool {
         text as CFTypeRef
     )
 
-    return setResult == .success
+    guard setResult == .success else { return false }
+
+    // Vérification : Chrome/Electron retournent .success mais ignorent l'écriture.
+    // On compare la longueur du contenu avant/après pour détecter ce faux positif.
+    if beforeLen >= 0 {
+        var afterRef: CFTypeRef?
+        AXUIElementCopyAttributeValue(focused, kAXValueAttribute as CFString, &afterRef)
+        let afterLen = (afterRef as? String)?.count ?? -1
+
+        if afterLen >= 0 && afterLen <= beforeLen {
+            NSLog("[DictAI-paste] AXUIElement reported success but text not inserted (before=%d, after=%d) — falling through to Cmd+V", beforeLen, afterLen)
+            return false
+        }
+    }
+
+    return true
 }
 
 // MARK: - Clipboard + Cmd+V Fallback
@@ -113,6 +147,10 @@ private func tryAXPaste(text: String) -> Bool {
 ///
 /// Sauvegarde le contenu du presse-papier avant le collage et le restaure
 /// 150ms après pour minimiser l'impact sur le workflow de l'utilisateur.
+///
+/// Réactive explicitement l'app cible avant le Cmd+V pour les apps comme
+/// Chrome/IDX où le Monaco editor peut perdre son focus interne quand
+/// l'overlay DictAI apparaît.
 private func pasteViaClipboard(text: String) {
     let pasteboard = NSPasteboard.general
     let savedChangeCount = pasteboard.changeCount
@@ -124,6 +162,21 @@ private func pasteViaClipboard(text: String) {
     pasteboard.clearContents()
     pasteboard.setString(text, forType: .string)
 
+    // Réactiver l'app cible mémorisée avant l'overlay (ou frontmost en fallback).
+    // Critique pour Chrome/Electron : run_on_main_thread (Tauri) peut rendre DictAI
+    // frontmost momentanément, ce qui ferait diriger le CGEvent vers DictAI.
+    let targetApp = savedTargetApp ?? NSWorkspace.shared.frontmostApplication
+    let myPid = ProcessInfo.processInfo.processIdentifier
+    if let app = targetApp, app.processIdentifier != myPid {
+        NSLog("[DictAI-paste] Activating target app: %@ (pid %d)", app.localizedName ?? "?", app.processIdentifier)
+        app.activate(options: .activateIgnoringOtherApps)
+        Thread.sleep(forTimeInterval: 0.15) // 150ms — Chrome/Electron a besoin de temps pour refocaliser le renderer
+    } else {
+        NSLog("[DictAI-paste] WARNING: target app is self or nil — savedTarget=%@, frontmost=%@",
+              savedTargetApp?.localizedName ?? "nil",
+              NSWorkspace.shared.frontmostApplication?.localizedName ?? "nil")
+    }
+
     // Simuler Cmd+V (keyCode 9 = 'v' sur toutes les dispositions de clavier US/FR)
     let source = CGEventSource(stateID: .hidSystemState)
     if let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 0x09, keyDown: true),
@@ -132,10 +185,13 @@ private func pasteViaClipboard(text: String) {
         keyUp.flags   = .maskCommand
         keyDown.post(tap: .cghidEventTap)
         keyUp.post(tap: .cghidEventTap)
+        NSLog("[DictAI-paste] CGEvent Cmd+V posted to HID stream")
     }
 
-    // Restaurer le presse-papier après le délai de collage
-    let delayNs = DispatchTimeInterval.milliseconds(150)
+    // Restaurer le presse-papier après un délai généreux.
+    // Chrome/Electron lit le clipboard de manière asynchrone (IPC renderer → main → clipboard).
+    // 150ms était trop court pour des apps web complexes comme IDX.
+    let delayNs = DispatchTimeInterval.milliseconds(1000)
     DispatchQueue.global(qos: .userInteractive).asyncAfter(deadline: .now() + delayNs) {
         // Ne restaurer que si le presse-papier n'a pas été modifié par une
         // autre application entre-temps (changeCount +1 = notre propre modification)
